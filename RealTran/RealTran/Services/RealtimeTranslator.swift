@@ -107,11 +107,18 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         guard let str = String(data: data, encoding: .utf8) else { return }
         sendQueue.async {
             task.send(.string(str)) { [weak self] error in
-                if let error {
-                    self?.onEvent(.error("Send failed: \(error.localizedDescription)"))
-                }
+                guard let error else { return }
+                // Suppress URL-cancelled errors from intentional close().
+                if Self.isCancellationError(error) { return }
+                self?.onEvent(.error("Send failed: \(error.localizedDescription)"))
             }
         }
+    }
+
+    nonisolated private static func isCancellationError(_ error: Error) -> Bool {
+        if let urlErr = error as? URLError, urlErr.code == .cancelled { return true }
+        let ns = error as NSError
+        return ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled
     }
 
     nonisolated private func startReceiveLoop() {
@@ -124,7 +131,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
                     let msg = try await task.receive()
                     self.handle(message: msg)
                 } catch {
-                    if !Task.isCancelled {
+                    if !Task.isCancelled, !Self.isCancellationError(error) {
                         self.onEvent(.state(.failed(error.localizedDescription)))
                     }
                     break
