@@ -43,6 +43,15 @@ struct HomeView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        coordinator.newConversation()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("New conversation")
+                    .disabled(!coordinator.hasContent)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showingSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -54,7 +63,12 @@ struct HomeView: View {
                     SettingsView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { showingSettings = false }
+                                Button {
+                                    showingSettings = false
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                .accessibilityLabel("Close settings")
                             }
                         }
                 }

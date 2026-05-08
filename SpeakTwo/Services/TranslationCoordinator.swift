@@ -79,6 +79,44 @@ final class TranslationCoordinator {
         if case .error = status { status = .idle }
     }
 
+    /// True when there is anything visible in the home view (an in-flight or
+    /// completed turn, or accumulated transcript text). Used to decide whether
+    /// the "new conversation" toolbar action should be enabled.
+    var hasContent: Bool {
+        !chatTurns.isEmpty
+            || openTurn != nil
+            || drainingTurn != nil
+            || !primaryLines.isEmpty
+            || !secondaryLines.isEmpty
+            || !primaryTranscript.isEmpty
+            || !secondaryTranscript.isEmpty
+    }
+
+    /// Stop any running session (which saves it to the archive), then clear
+    /// the in-memory display so the home view is ready for a fresh chat.
+    /// No-op when there is nothing on screen to avoid empty archive entries.
+    func newConversation() {
+        guard hasContent else { return }
+
+        if status == .running || status == .starting {
+            stop()
+        }
+
+        chatTurns = []
+        openTurn = nil
+        drainingTurn = nil
+        primaryTranscript = ""
+        secondaryTranscript = ""
+        lastInputTranscript = ""
+        primaryLines = []
+        secondaryLines = []
+        inputLines = []
+        openTurnTranslatedFromPanel = nil
+        drainingTurnTranslatedFromPanel = nil
+        drainingTurnLastOutputAt = .distantPast
+        openTurnLastInputAt = .distantPast
+    }
+
     func start() async {
         // A previous error should not block restarting.
         if case .error = status { status = .idle }
