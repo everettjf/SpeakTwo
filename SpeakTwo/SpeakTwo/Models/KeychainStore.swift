@@ -4,7 +4,7 @@ import Security
 final class KeychainStore: @unchecked Sendable {
     static let shared = KeychainStore()
 
-    private let service = "com.xnu.RealTran"
+    private let service = "com.xnu.SpeakTwo"
     private let account = "openai_api_key"
 
     var apiKey: String? {

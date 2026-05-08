@@ -1,13 +1,13 @@
 //
-//  RealTranUITestsLaunchTests.swift
-//  RealTranUITests
+//  SpeakTwoUITestsLaunchTests.swift
+//  SpeakTwoUITests
 //
 //  Created by eevv on 5/7/26.
 //
 
 import XCTest
 
-final class RealTranUITestsLaunchTests: XCTestCase {
+final class SpeakTwoUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

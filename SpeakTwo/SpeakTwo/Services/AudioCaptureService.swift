@@ -25,7 +25,7 @@ nonisolated final class AudioCaptureService: @unchecked Sendable {
     static let targetSampleRate: Double = 24_000
 
     private let engine = AVAudioEngine()
-    private let converterQueue = DispatchQueue(label: "RealTran.AudioConverter", qos: .userInitiated)
+    private let converterQueue = DispatchQueue(label: "SpeakTwo.AudioConverter", qos: .userInitiated)
     private var converter: AVAudioConverter?
     private var targetFormat: AVAudioFormat?
 

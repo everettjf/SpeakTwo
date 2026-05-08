@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct RealTranApp: App {
+struct SpeakTwoApp: App {
     @State private var settings = AppSettings()
     @State private var store = SessionStore()
     @State private var usage = UsageTracker()

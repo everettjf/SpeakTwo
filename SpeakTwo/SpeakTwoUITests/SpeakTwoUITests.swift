@@ -1,13 +1,13 @@
 //
-//  RealTranUITests.swift
-//  RealTranUITests
+//  SpeakTwoUITests.swift
+//  SpeakTwoUITests
 //
 //  Created by eevv on 5/7/26.
 //
 
 import XCTest
 
-final class RealTranUITests: XCTestCase {
+final class SpeakTwoUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

@@ -31,7 +31,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
     private let session: URLSession
     private var task: URLSessionWebSocketTask?
     private var receiveLoop: Task<Void, Never>?
-    private var sendQueue = DispatchQueue(label: "RealTran.WSSend")
+    private var sendQueue = DispatchQueue(label: "SpeakTwo.WSSend")
 
     init(apiKey: String,
          targetLanguageCode: String,
