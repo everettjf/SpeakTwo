@@ -3,39 +3,58 @@ import SwiftUI
 struct ArchiveView: View {
     @Environment(SessionStore.self) private var store
 
+    @State private var selection: ChatSession?
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if store.sessions.isEmpty {
-                    ContentUnavailableView(
-                        "No archived sessions",
-                        systemImage: "tray",
-                        description: Text("Each chat you finish will appear here.")
-                    )
-                } else {
-                    List {
-                        ForEach(store.sessions) { session in
-                            NavigationLink(value: session) {
-                                row(for: session)
-                            }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
+        }
+    }
+
+    @ViewBuilder
+    private var sidebar: some View {
+        Group {
+            if store.sessions.isEmpty {
+                ContentUnavailableView(
+                    "No archived sessions",
+                    systemImage: "tray",
+                    description: Text("Each chat you finish will appear here.")
+                )
+            } else {
+                List(selection: $selection) {
+                    ForEach(store.sessions) { session in
+                        NavigationLink(value: session) {
+                            row(for: session)
                         }
-                        .onDelete(perform: delete)
                     }
+                    .onDelete(perform: delete)
                 }
             }
-            .navigationTitle("Archive")
-            .navigationDestination(for: ChatSession.self) { session in
-                SessionDetailView(session: session)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        store.reload()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
+        }
+        .navigationTitle("Archive")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    store.reload()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let selection {
+            SessionDetailView(session: selection)
+        } else {
+            ContentUnavailableView(
+                "Select a conversation",
+                systemImage: "tray",
+                description: Text("Pick a session from the list to view its transcript.")
+            )
         }
     }
 
@@ -61,7 +80,9 @@ struct ArchiveView: View {
 
     private func delete(at offsets: IndexSet) {
         for idx in offsets {
-            store.delete(store.sessions[idx])
+            let session = store.sessions[idx]
+            if selection?.id == session.id { selection = nil }
+            store.delete(session)
         }
     }
 }

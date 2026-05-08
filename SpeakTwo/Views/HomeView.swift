@@ -3,8 +3,11 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(TranslationCoordinator.self) private var coordinator
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     @State private var showingSettings = false
+
+    private var isRegular: Bool { hSizeClass == .regular }
 
     var body: some View {
         @Bindable var settings = settings
@@ -152,16 +155,22 @@ struct HomeView: View {
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .trailing)
+                .frame(width: sideSlotWidth, alignment: .trailing)
         }
         .padding(.horizontal)
+        .frame(maxWidth: isRegular ? 720 : .infinity)
+        .frame(maxWidth: .infinity)
     }
+
+    /// Width of the status / dot side slots — wider on iPad so the action
+    /// button stays centered and balanced.
+    private var sideSlotWidth: CGFloat { isRegular ? 120 : 80 }
 
     private var statusDot: some View {
         Circle()
             .fill(statusColor)
             .frame(width: 12, height: 12)
-            .frame(width: 80, alignment: .leading)
+            .frame(width: sideSlotWidth, alignment: .leading)
             .padding(.leading)
     }
 
@@ -192,10 +201,10 @@ struct HomeView: View {
                 coordinator.stop()
             } label: {
                 Label("Stop", systemImage: "stop.circle.fill")
-                    .font(.title3.weight(.semibold))
+                    .font(actionButtonFont)
                     .fixedSize()
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, actionButtonHPadding)
+                    .padding(.vertical, actionButtonVPadding)
                     .background(.red, in: .capsule)
                     .foregroundStyle(.white)
             }
@@ -207,10 +216,10 @@ struct HomeView: View {
                 Task { await coordinator.start() }
             } label: {
                 Label("Start", systemImage: "mic.circle.fill")
-                    .font(.title3.weight(.semibold))
+                    .font(actionButtonFont)
                     .fixedSize()
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, actionButtonHPadding)
+                    .padding(.vertical, actionButtonVPadding)
                     .background(settings.hasAPIKey ? .green : .gray, in: .capsule)
                     .foregroundStyle(.white)
             }
@@ -218,4 +227,11 @@ struct HomeView: View {
             .disabled(!settings.hasAPIKey || coordinator.status == .starting)
         }
     }
+
+    private var actionButtonFont: Font {
+        isRegular ? .title2.weight(.semibold) : .title3.weight(.semibold)
+    }
+
+    private var actionButtonHPadding: CGFloat { isRegular ? 32 : 24 }
+    private var actionButtonVPadding: CGFloat { isRegular ? 14 : 10 }
 }

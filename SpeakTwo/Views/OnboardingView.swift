@@ -199,6 +199,8 @@ struct OnboardingView: View {
                     .animation(.easeOut(duration: 0.25), value: step)
             }
         }
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -229,6 +231,8 @@ struct OnboardingView: View {
                 Color.clear.frame(height: 24)
             }
         }
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
     }
 
     private var backgroundGradient: LinearGradient {
@@ -307,6 +311,7 @@ private struct OnboardingPage<Content: View>: View {
 
                 Spacer(minLength: 16)
             }
+            .frame(maxWidth: 600)
             .frame(maxWidth: .infinity)
         }
     }

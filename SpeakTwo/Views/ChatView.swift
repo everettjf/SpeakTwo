@@ -7,6 +7,13 @@ import UIKit
 struct ChatView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(TranslationCoordinator.self) private var coordinator
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    /// Cap chat column width on iPad / wide layouts so bubbles stay readable
+    /// instead of spanning a 1024pt+ screen.
+    private var contentMaxWidth: CGFloat {
+        hSizeClass == .regular ? 760 : .infinity
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -51,6 +58,8 @@ struct ChatView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
+                .frame(maxWidth: contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
             .onChange(of: coordinator.chatTurns.count) { _, _ in
                 scrollToBottom(proxy)
@@ -98,54 +107,59 @@ private struct ChatTurnBubble: View {
         HStack(alignment: .top, spacing: 0) {
             if alignsRight { Spacer(minLength: 40) }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text(sourceTag)
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(accent.opacity(0.18), in: .capsule)
-                        .foregroundStyle(accent)
-                    Text(turn.startedAt.formatted(date: .omitted, time: .shortened))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    if isLive {
-                        Circle().fill(.red).frame(width: 5, height: 5)
-                    }
-                }
-
-                Text(turn.sourceText.isEmpty ? "…" : turn.sourceText)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-
-                if !turn.translatedText.isEmpty || isLive {
-                    Divider().padding(.vertical, 2)
-                    HStack(spacing: 6) {
-                        Text(translationTag)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 0)
-                    }
-                    Text(turn.translatedText.isEmpty ? "…" : turn.translatedText)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(accent.opacity(0.10), in: .rect(cornerRadius: 14))
-            .overlay(alignment: .leading) {
-                Rectangle()
-                    .fill(accent)
-                    .frame(width: 3)
-                    .clipShape(.rect(cornerRadii: .init(topLeading: 14, bottomLeading: 14)))
-            }
-            .frame(maxWidth: .infinity, alignment: alignsRight ? .trailing : .leading)
-            .contextMenu { copyMenu }
+            bubbleColumn
+                .frame(maxWidth: 560, alignment: alignsRight ? .trailing : .leading)
 
             if !alignsRight { Spacer(minLength: 40) }
         }
+    }
+
+    @ViewBuilder
+    private var bubbleColumn: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(sourceTag)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(accent.opacity(0.18), in: .capsule)
+                    .foregroundStyle(accent)
+                Text(turn.startedAt.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                if isLive {
+                    Circle().fill(.red).frame(width: 5, height: 5)
+                }
+            }
+
+            Text(turn.sourceText.isEmpty ? "…" : turn.sourceText)
+                .font(.body)
+                .foregroundStyle(.primary)
+
+            if !turn.translatedText.isEmpty || isLive {
+                Divider().padding(.vertical, 2)
+                HStack(spacing: 6) {
+                    Text(translationTag)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                Text(turn.translatedText.isEmpty ? "…" : turn.translatedText)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(accent.opacity(0.10), in: .rect(cornerRadius: 14))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(accent)
+                .frame(width: 3)
+                .clipShape(.rect(cornerRadii: .init(topLeading: 14, bottomLeading: 14)))
+        }
+        .contextMenu { copyMenu }
     }
 
     @ViewBuilder

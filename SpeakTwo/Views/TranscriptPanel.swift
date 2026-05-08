@@ -7,11 +7,25 @@ struct TranscriptPanel: View {
     let accent: Color
     let isRunning: Bool
 
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    private var isRegular: Bool { hSizeClass == .regular }
+
+    /// Larger transcript body text on iPad / regular size class so two people
+    /// reading from across a table can actually see it.
+    private var transcriptFont: Font {
+        isRegular ? .system(size: 28, weight: .regular) : .title3
+    }
+
+    private var titleFont: Font {
+        isRegular ? .title3.weight(.semibold) : .headline
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.headline)
+                    .font(titleFont)
                     .foregroundStyle(accent)
                 Spacer()
                 if isRunning {
@@ -38,7 +52,7 @@ struct TranscriptPanel: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(text.isEmpty ? placeholder : text)
-                            .font(.title3)
+                            .font(transcriptFont)
                             .foregroundStyle(text.isEmpty ? .secondary : .primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .id("transcript")
