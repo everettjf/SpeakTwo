@@ -94,10 +94,25 @@ final class TranslationCoordinator {
         primaryLanguageCode = settings.primaryLanguageCode
         secondaryLanguageCode = settings.secondaryLanguageCode
 
+        let turnDetection: RealtimeTranslator.TurnDetection
+        switch settings.responseSpeed {
+        case .fast: turnDetection = .fast
+        case .standard: turnDetection = .standard
+        case .smart: turnDetection = .smart
+        }
+
+        let noiseReduction: RealtimeTranslator.NoiseReduction
+        switch settings.micScenario {
+        case .closeSingle: noiseReduction = .nearField
+        case .desktopTwo: noiseReduction = .farField
+        }
+
         // Build translators with @Sendable callbacks that hop to MainActor.
         let primary = RealtimeTranslator(
             apiKey: settings.apiKey,
-            targetLanguageCode: primaryLanguageCode
+            targetLanguageCode: primaryLanguageCode,
+            turnDetection: turnDetection,
+            noiseReduction: noiseReduction
         ) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handle(event: event, panel: .primary)
@@ -106,7 +121,9 @@ final class TranslationCoordinator {
 
         let secondary = RealtimeTranslator(
             apiKey: settings.apiKey,
-            targetLanguageCode: secondaryLanguageCode
+            targetLanguageCode: secondaryLanguageCode,
+            turnDetection: turnDetection,
+            noiseReduction: noiseReduction
         ) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handle(event: event, panel: .secondary)
@@ -125,8 +142,10 @@ final class TranslationCoordinator {
             secondary?.appendAudio(data)
         }
 
+        let captureMode: AudioCaptureService.CaptureMode = (settings.autoLevel == .on) ? .voiceChat : .measurement
+
         do {
-            try await audio.start()
+            try await audio.start(mode: captureMode)
             status = .running
         } catch {
             status = .error(error.localizedDescription)

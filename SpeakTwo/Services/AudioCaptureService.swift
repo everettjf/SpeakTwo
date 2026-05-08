@@ -24,6 +24,21 @@ nonisolated final class AudioCaptureService: @unchecked Sendable {
     /// Target sample rate required by the OpenAI Realtime API.
     static let targetSampleRate: Double = 24_000
 
+    /// Audio session capture mode. `.measurement` keeps raw audio (no AGC),
+    /// `.voiceChat` enables system AGC + echo cancellation which evens out
+    /// volume between near and far speakers.
+    enum CaptureMode: Sendable {
+        case measurement
+        case voiceChat
+
+        var sessionMode: AVAudioSession.Mode {
+            switch self {
+            case .measurement: return .measurement
+            case .voiceChat: return .voiceChat
+            }
+        }
+    }
+
     private let engine = AVAudioEngine()
     private let converterQueue = DispatchQueue(label: "SpeakTwo.AudioConverter", qos: .userInitiated)
     private var converter: AVAudioConverter?
@@ -41,12 +56,15 @@ nonisolated final class AudioCaptureService: @unchecked Sendable {
         }
     }
 
-    nonisolated func start() async throws {
+    nonisolated func start(mode: CaptureMode = .voiceChat) async throws {
         let granted = await Self.requestPermission()
         guard granted else { throw AudioError.permissionDenied }
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.record, mode: .measurement, options: [.allowBluetoothHFP])
+        // .voiceChat is .playAndRecord-only; pair the category accordingly so the
+        // selected mode actually takes effect.
+        let category: AVAudioSession.Category = (mode == .voiceChat) ? .playAndRecord : .record
+        try session.setCategory(category, mode: mode.sessionMode, options: [.allowBluetoothHFP])
         try session.setPreferredSampleRate(Self.targetSampleRate)
         try session.setActive(true, options: [])
 

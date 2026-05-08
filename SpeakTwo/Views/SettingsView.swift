@@ -69,6 +69,8 @@ struct SettingsView: View {
                 Text("Two simultaneous translation sessions run — one for each language. The model auto-detects who is speaking which.")
             }
 
+            audioRecognitionSection
+
             usageSection
 
             Section {
@@ -101,6 +103,46 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This clears the daily minute totals shown above. Archived chats are not affected.")
+        }
+    }
+
+    // MARK: - Audio & Recognition
+
+    @ViewBuilder
+    private var audioRecognitionSection: some View {
+        @Bindable var settings = settings
+
+        Section {
+            Picker("Response speed", selection: $settings.responseSpeed) {
+                ForEach(ResponseSpeed.allCases) { value in
+                    Text(value.displayName).tag(value)
+                }
+            }
+            Text(settings.responseSpeed.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("Microphone scenario", selection: $settings.micScenario) {
+                ForEach(MicScenario.allCases) { value in
+                    Text(value.displayName).tag(value)
+                }
+            }
+            Text(settings.micScenario.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("Auto-level mixed speakers", selection: $settings.autoLevel) {
+                ForEach(AutoLevel.allCases) { value in
+                    Text(value.displayName).tag(value)
+                }
+            }
+            Text(settings.autoLevel.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text("Audio & Recognition")
+        } footer: {
+            Text("Tune these if turns feel slow to appear or if a second speaker is harder to recognize. Changes apply on the next session.")
         }
     }
 
