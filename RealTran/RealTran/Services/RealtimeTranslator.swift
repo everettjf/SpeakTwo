@@ -55,7 +55,6 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
 
         let task = session.webSocketTask(with: request)
         self.task = task
