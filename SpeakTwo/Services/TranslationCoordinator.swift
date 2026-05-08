@@ -50,11 +50,22 @@ final class TranslationCoordinator {
     private var secondaryLines: [TranscriptLine] = []
     private var inputLines: [TranscriptLine] = []
 
-    // Chat-turn streaming state. `openTurn` is exposed read-only so views can
-    // render the in-progress turn before it is finalized into `chatTurns`.
+    // Chat-turn streaming state. `openTurn` is the input-receiving slot;
+    // `drainingTurn` is a turn whose input has just been closed but whose
+    // translation may still be streaming. Holding the previous turn in a
+    // draining slot prevents late translation deltas from leaking into the
+    // next turn — the OpenAI translations endpoint emits no item_id we
+    // could use to demux, so we route by temporal order.
     private(set) var openTurn: ChatTurn?
+    private(set) var drainingTurn: ChatTurn?
     private var openTurnLastInputAt: Date = .distantPast
     private var openTurnTranslatedFromPanel: Panel?
+    private var drainingTurnTranslatedFromPanel: Panel?
+    private var drainingTurnLastOutputAt: Date = .distantPast
+
+    /// If draining's output has been quiet longer than this, the next output
+    /// delta likely belongs to the new openTurn — promote draining first.
+    private static let drainingContinuityWindow: TimeInterval = 0.5
 
     init(settings: AppSettings, store: SessionStore, usage: UsageTracker) {
         self.settings = settings
@@ -89,7 +100,10 @@ final class TranslationCoordinator {
         inputLines = []
         chatTurns = []
         openTurn = nil
+        drainingTurn = nil
         openTurnTranslatedFromPanel = nil
+        drainingTurnTranslatedFromPanel = nil
+        drainingTurnLastOutputAt = .distantPast
         sessionStartedAt = Date()
         primaryLanguageCode = settings.primaryLanguageCode
         secondaryLanguageCode = settings.secondaryLanguageCode
@@ -151,7 +165,13 @@ final class TranslationCoordinator {
         audio.stop()
         tearDownConnections()
 
-        // Finalize any open chat turn.
+        // Finalize any pending turns in chronological order: draining first
+        // (its input was already closed earlier), then the still-open turn.
+        if let turn = drainingTurn {
+            chatTurns.append(turn)
+            drainingTurn = nil
+            drainingTurnTranslatedFromPanel = nil
+        }
         if let turn = openTurn {
             chatTurns.append(turn)
             openTurn = nil
@@ -231,8 +251,18 @@ final class TranslationCoordinator {
         let now = Date()
         // Start a new turn after a 1.5s silence gap or after a sentence terminator.
         if openTurn == nil || shouldFinalizeTurn(now: now) {
-            if let finished = openTurn {
-                chatTurns.append(finished)
+            if let closing = openTurn {
+                // Move the closed input turn into draining so its still-arriving
+                // output deltas keep flowing into it instead of leaking into the
+                // new openTurn. Only one draining slot exists — if a previous
+                // draining turn is still here, promote it now (its output is
+                // unlikely to keep coming after this much elapsed time).
+                if let oldDraining = drainingTurn {
+                    chatTurns.append(oldDraining)
+                }
+                drainingTurn = closing
+                drainingTurnTranslatedFromPanel = openTurnTranslatedFromPanel
+                drainingTurnLastOutputAt = now
             }
             openTurn = ChatTurn(
                 startedAt: now,
@@ -271,8 +301,28 @@ final class TranslationCoordinator {
     }
 
     private func updateChatTurnFromOutput(delta: String, panel: Panel) {
-        // Only append to the current turn if this delta is the actual translation
-        // (not the echo of the same-language session).
+        let now = Date()
+
+        // Late deltas for the previous (draining) turn arrive here. Route them
+        // to draining as long as its output stream is still active. Once the
+        // gap exceeds drainingContinuityWindow we assume the previous turn's
+        // translation is done — promote draining and let this delta fall
+        // through to openTurn.
+        if drainingTurn != nil, drainingTurnTranslatedFromPanel == panel {
+            let stillStreaming = now.timeIntervalSince(drainingTurnLastOutputAt) < Self.drainingContinuityWindow
+            if stillStreaming {
+                drainingTurn?.translatedText += delta
+                drainingTurnLastOutputAt = now
+                return
+            }
+            // Output paused long enough — assume draining is done and promote.
+            chatTurns.append(drainingTurn!)
+            drainingTurn = nil
+            drainingTurnTranslatedFromPanel = nil
+            drainingTurnLastOutputAt = .distantPast
+        }
+
+        // Only route to openTurn once language detection has assigned a panel.
         guard openTurn != nil, let routePanel = openTurnTranslatedFromPanel,
               routePanel == panel else { return }
         openTurn?.translatedText += delta

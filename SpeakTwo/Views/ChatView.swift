@@ -27,6 +27,15 @@ struct ChatView: View {
                             )
                             .id(turn.id)
                         }
+                        if let drainingTurn = coordinator.drainingTurn {
+                            // Input is closed but translation may still be streaming.
+                            ChatTurnBubble(
+                                turn: drainingTurn,
+                                primaryLanguageCode: coordinator.primaryLanguageCode,
+                                secondaryLanguageCode: coordinator.secondaryLanguageCode
+                            )
+                            .id(drainingTurn.id)
+                        }
                         if let openTurn = coordinator.openTurn {
                             ChatTurnBubble(
                                 turn: openTurn,
@@ -49,6 +58,9 @@ struct ChatView: View {
                 scrollToBottom(proxy)
             }
             .onChange(of: coordinator.openTurn?.translatedText) { _, _ in
+                scrollToBottom(proxy)
+            }
+            .onChange(of: coordinator.drainingTurn?.translatedText) { _, _ in
                 scrollToBottom(proxy)
             }
         }
@@ -116,7 +128,7 @@ private struct ChatTurnBubble: View {
                     }
                     Text(turn.translatedText.isEmpty ? "…" : turn.translatedText)
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
             }
             .padding(.horizontal, 14)
