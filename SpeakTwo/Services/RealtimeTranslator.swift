@@ -97,14 +97,18 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
             turnDetectionPayload = ["type": "semantic_vad"]
         }
 
+        // The translations endpoint puts `turn_detection` at the session
+        // root, not under `audio.input` (the GA realtime endpoint). Sending
+        // it under `audio.input` produces:
+        //   "Unknown parameter: 'session.audio.input.turn_detection'"
         let sessionUpdate: [String: Any] = [
             "type": "session.update",
             "session": [
+                "turn_detection": turnDetectionPayload,
                 "audio": [
                     "input": [
                         "transcription": ["model": "gpt-realtime-whisper"],
                         "noise_reduction": ["type": noiseReduction.rawValue],
-                        "turn_detection": turnDetectionPayload,
                     ],
                     "output": [
                         "language": targetLanguageCode
