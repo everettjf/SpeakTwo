@@ -119,13 +119,17 @@ nonisolated final class AudioCaptureService: @unchecked Sendable {
             return
         }
 
-        var consumed = false
+        // Reference-typed flag so the @Sendable input block can mutate it
+        // under Swift 6 strict concurrency. The converter calls this
+        // synchronously, so no actual concurrent access occurs.
+        final class Flag: @unchecked Sendable { var consumed = false }
+        let flag = Flag()
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if consumed {
+            if flag.consumed {
                 outStatus.pointee = .noDataNow
                 return nil
             }
-            consumed = true
+            flag.consumed = true
             outStatus.pointee = .haveData
             return buffer
         }
