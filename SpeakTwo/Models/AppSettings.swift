@@ -8,31 +8,6 @@ enum DisplayMode: String, Codable, Sendable, CaseIterable {
     case chat
 }
 
-/// How quickly the server commits an utterance and emits the next turn.
-enum ResponseSpeed: String, Codable, Sendable, CaseIterable, Identifiable {
-    case fast
-    case standard
-    case smart
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .fast: return "Fast"
-        case .standard: return "Standard"
-        case .smart: return "Smart"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .fast: return "Shorter pauses trigger output. Best for fast back-and-forth."
-        case .standard: return "Balanced pause threshold."
-        case .smart: return "Model decides when a sentence is done. Most natural, slightly slower."
-        }
-    }
-}
-
 /// Where the microphone sits relative to speakers.
 enum MicScenario: String, Codable, Sendable, CaseIterable, Identifiable {
     case closeSingle
@@ -87,7 +62,6 @@ final class AppSettings {
         static let secondaryLanguage = "secondaryLanguage"
         static let displayMode = "displayMode"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
-        static let responseSpeed = "responseSpeed"
         static let micScenario = "micScenario"
         static let autoLevel = "autoLevel"
     }
@@ -106,10 +80,6 @@ final class AppSettings {
 
     var hasCompletedOnboarding: Bool {
         didSet { defaults.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding) }
-    }
-
-    var responseSpeed: ResponseSpeed {
-        didSet { defaults.set(responseSpeed.rawValue, forKey: Keys.responseSpeed) }
     }
 
     var micScenario: MicScenario {
@@ -137,9 +107,6 @@ final class AppSettings {
         let modeRaw = defaults.string(forKey: Keys.displayMode) ?? DisplayMode.faceToFace.rawValue
         self.displayMode = DisplayMode(rawValue: modeRaw) ?? .faceToFace
         self.hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
-
-        let speedRaw = defaults.string(forKey: Keys.responseSpeed) ?? ResponseSpeed.standard.rawValue
-        self.responseSpeed = ResponseSpeed(rawValue: speedRaw) ?? .standard
 
         let scenarioRaw = defaults.string(forKey: Keys.micScenario) ?? MicScenario.desktopTwo.rawValue
         self.micScenario = MicScenario(rawValue: scenarioRaw) ?? .desktopTwo

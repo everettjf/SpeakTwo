@@ -24,19 +24,6 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         case error(String)
     }
 
-    /// Server-side voice activity detection settings. Maps to the
-    /// `turn_detection` block in the realtime `session.update` payload.
-    struct TurnDetection: Sendable {
-        enum Kind: Sendable { case serverVAD, semanticVAD }
-        var kind: Kind
-        /// Only used when `kind == .serverVAD`.
-        var silenceDurationMs: Int
-
-        static let fast = TurnDetection(kind: .serverVAD, silenceDurationMs: 200)
-        static let standard = TurnDetection(kind: .serverVAD, silenceDurationMs: 400)
-        static let smart = TurnDetection(kind: .semanticVAD, silenceDurationMs: 0)
-    }
-
     /// Server-side noise reduction profile.
     enum NoiseReduction: String, Sendable {
         case nearField = "near_field"
@@ -45,7 +32,6 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
     private let apiKey: String
     private let targetLanguageCode: String
-    private let turnDetection: TurnDetection
     private let noiseReduction: NoiseReduction
     private let onEvent: @Sendable (Event) -> Void
 
@@ -56,12 +42,10 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
     init(apiKey: String,
          targetLanguageCode: String,
-         turnDetection: TurnDetection = .standard,
          noiseReduction: NoiseReduction = .farField,
          onEvent: @escaping @Sendable (Event) -> Void) {
         self.apiKey = apiKey
         self.targetLanguageCode = targetLanguageCode
-        self.turnDetection = turnDetection
         self.noiseReduction = noiseReduction
         self.onEvent = onEvent
         let cfg = URLSessionConfiguration.default
@@ -85,26 +69,12 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         self.task = task
         task.resume()
 
-        // Send initial session.update.
-        var turnDetectionPayload: [String: Any] = [:]
-        switch turnDetection.kind {
-        case .serverVAD:
-            turnDetectionPayload = [
-                "type": "server_vad",
-                "silence_duration_ms": turnDetection.silenceDurationMs,
-            ]
-        case .semanticVAD:
-            turnDetectionPayload = ["type": "semantic_vad"]
-        }
-
-        // The translations endpoint puts `turn_detection` at the session
-        // root, not under `audio.input` (the GA realtime endpoint). Sending
-        // it under `audio.input` produces:
-        //   "Unknown parameter: 'session.audio.input.turn_detection'"
+        // The /v1/realtime/translations endpoint does not accept a
+        // `turn_detection` field (neither nested nor at the session root —
+        // both produce "Unknown parameter"). The server picks VAD internally.
         let sessionUpdate: [String: Any] = [
             "type": "session.update",
             "session": [
-                "turn_detection": turnDetectionPayload,
                 "audio": [
                     "input": [
                         "transcription": ["model": "gpt-realtime-whisper"],

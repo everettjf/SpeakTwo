@@ -113,15 +113,6 @@ struct SettingsView: View {
         @Bindable var settings = settings
 
         Section {
-            Picker("Response speed", selection: $settings.responseSpeed) {
-                ForEach(ResponseSpeed.allCases) { value in
-                    Text(value.displayName).tag(value)
-                }
-            }
-            Text(settings.responseSpeed.detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             Picker("Microphone scenario", selection: $settings.micScenario) {
                 ForEach(MicScenario.allCases) { value in
                     Text(value.displayName).tag(value)
