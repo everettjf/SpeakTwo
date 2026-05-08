@@ -39,6 +39,7 @@ final class TranslationCoordinator {
 
     private let settings: AppSettings
     private let store: SessionStore
+    private let usage: UsageTracker
 
     private let audio = AudioCaptureService()
     private var primaryTranslator: RealtimeTranslator?
@@ -55,9 +56,10 @@ final class TranslationCoordinator {
     private var openTurnLastInputAt: Date = .distantPast
     private var openTurnTranslatedFromPanel: Panel?
 
-    init(settings: AppSettings, store: SessionStore) {
+    init(settings: AppSettings, store: SessionStore, usage: UsageTracker) {
         self.settings = settings
         self.store = store
+        self.usage = usage
     }
 
     // MARK: - Public
@@ -144,6 +146,12 @@ final class TranslationCoordinator {
             chatTurns.append(turn)
             openTurn = nil
             openTurnTranslatedFromPanel = nil
+        }
+
+        // Record usage for this session, regardless of whether transcripts arrived.
+        if let startedAt = sessionStartedAt {
+            let elapsed = Date().timeIntervalSince(startedAt)
+            usage.recordSession(durationSeconds: elapsed)
         }
 
         // Persist the session if there is anything to save.

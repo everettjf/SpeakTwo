@@ -1,11 +1,15 @@
+import Charts
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
+    @Environment(UsageTracker.self) private var usage
 
     @State private var apiKeyDraft: String = ""
     @State private var apiKeyVisible: Bool = false
     @State private var saved = false
+    @State private var showOnboarding = false
+    @State private var confirmResetUsage = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -37,10 +41,15 @@ struct SettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+
+                Link(destination: URL(string: "https://platform.openai.com/api-keys")!) {
+                    Label("Open OpenAI API keys dashboard", systemImage: "arrow.up.right.square")
+                        .font(.subheadline)
+                }
             } header: {
                 Text("OpenAI API Key")
             } footer: {
-                Text("Stored securely in the iOS Keychain on this device. Required for live translation.")
+                Text("Stored securely in the iOS Keychain on this device.")
             }
 
             Section {
@@ -57,18 +66,159 @@ struct SettingsView: View {
             } header: {
                 Text("Languages")
             } footer: {
-                Text("Two simultaneous translation sessions run — one for each language. The model auto-detects who is speaking which language.")
+                Text("Two simultaneous translation sessions run — one for each language. The model auto-detects who is speaking which.")
+            }
+
+            usageSection
+
+            Section {
+                Button {
+                    showOnboarding = true
+                } label: {
+                    Label("Show welcome tour again", systemImage: "sparkles")
+                }
+            } header: {
+                Text("Help")
             }
 
             Section {
                 LabeledContent("Model", value: "gpt-realtime-translate")
                 LabeledContent("Sample rate", value: "24 kHz PCM16")
-                LabeledContent("Pricing (OpenAI)", value: "$0.034 / min × 2 sessions")
+                LabeledContent("List price", value: priceString(UsageTracker.pricePerMinute) + " / min")
             } header: {
                 Text("About")
             }
         }
         .navigationTitle("Settings")
         .onAppear { apiKeyDraft = settings.apiKey }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView()
+        }
+        .confirmationDialog("Reset usage history?",
+                            isPresented: $confirmResetUsage,
+                            titleVisibility: .visible) {
+            Button("Reset", role: .destructive) { usage.reset() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This clears the daily minute totals shown above. Archived chats are not affected.")
+        }
+    }
+
+    // MARK: - Usage
+
+    @ViewBuilder
+    private var usageSection: some View {
+        Section {
+            UsageRow(
+                title: "Today",
+                minutes: usage.todayMinutes,
+                cost: usage.todayCost,
+                emphasis: true
+            )
+            UsageRow(
+                title: "Yesterday",
+                minutes: usage.yesterdayMinutes,
+                cost: usage.yesterdayCost
+            )
+            UsageRow(
+                title: "All time",
+                minutes: usage.totalMinutes,
+                cost: usage.totalCost
+            )
+
+            UsageChart(days: usage.last7Days)
+                .frame(height: 110)
+                .padding(.vertical, 4)
+
+            Button(role: .destructive) {
+                confirmResetUsage = true
+            } label: {
+                Label("Reset usage history", systemImage: "trash")
+            }
+        } header: {
+            Text("Usage")
+        } footer: {
+            Text("Estimated from session duration at the OpenAI list price (\(priceString(UsageTracker.pricePerMinute)) / min). OpenAI's official billing dashboard is authoritative.")
+        }
+    }
+
+    private func priceString(_ amount: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.minimumFractionDigits = (amount < 1 ? 3 : 2)
+        f.maximumFractionDigits = (amount < 1 ? 3 : 2)
+        return f.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+    }
+}
+
+private struct UsageRow: View {
+    let title: String
+    let minutes: Double
+    let cost: Double
+    var emphasis: Bool = false
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .fontWeight(emphasis ? .semibold : .regular)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(minuteString)
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                Text(costString)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var minuteString: String {
+        if minutes < 1 { return String(format: "%.1f sec", minutes * 60) }
+        return String(format: "%.1f min", minutes)
+    }
+
+    private var costString: String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = (cost < 0.01 ? 4 : 2)
+        return f.string(from: NSNumber(value: cost)) ?? "$\(cost)"
+    }
+}
+
+private struct UsageChart: View {
+    let days: [DailyUsage]
+
+    var body: some View {
+        Chart(days) { day in
+            BarMark(
+                x: .value("Day", day.date, unit: .day),
+                y: .value("Minutes", day.minutes)
+            )
+            .foregroundStyle(barColor(day))
+            .cornerRadius(4)
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day)) { value in
+                AxisValueLabel(format: .dateTime.weekday(.narrow))
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing) { _ in
+                AxisGridLine()
+                AxisValueLabel()
+                    .font(.caption2)
+            }
+        }
+    }
+
+    private func barColor(_ day: DailyUsage) -> Color {
+        let isToday = Calendar.current.isDateInToday(day.date)
+        return isToday ? .green : .blue.opacity(0.7)
     }
 }

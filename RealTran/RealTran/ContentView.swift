@@ -17,8 +17,12 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .environment(AppSettings())
-        .environment(SessionStore())
-        .environment(TranslationCoordinator(settings: AppSettings(), store: SessionStore()))
+    let settings = AppSettings()
+    let store = SessionStore()
+    let usage = UsageTracker()
+    return ContentView()
+        .environment(settings)
+        .environment(store)
+        .environment(usage)
+        .environment(TranslationCoordinator(settings: settings, store: store, usage: usage))
 }

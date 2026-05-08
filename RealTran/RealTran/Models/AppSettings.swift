@@ -17,6 +17,7 @@ final class AppSettings {
         static let primaryLanguage = "primaryLanguage"
         static let secondaryLanguage = "secondaryLanguage"
         static let displayMode = "displayMode"
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
     }
 
     var primaryLanguageCode: String {
@@ -29,6 +30,10 @@ final class AppSettings {
 
     var displayMode: DisplayMode {
         didSet { defaults.set(displayMode.rawValue, forKey: Keys.displayMode) }
+    }
+
+    var hasCompletedOnboarding: Bool {
+        didSet { defaults.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding) }
     }
 
     var apiKey: String {
@@ -47,6 +52,7 @@ final class AppSettings {
         self.secondaryLanguageCode = defaults.string(forKey: Keys.secondaryLanguage) ?? "zh"
         let modeRaw = defaults.string(forKey: Keys.displayMode) ?? DisplayMode.faceToFace.rawValue
         self.displayMode = DisplayMode(rawValue: modeRaw) ?? .faceToFace
+        self.hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
     }
 
     var primaryLanguage: Language {
