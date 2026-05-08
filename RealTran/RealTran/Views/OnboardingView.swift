@@ -40,6 +40,12 @@ struct OnboardingView: View {
         }
         .background(backgroundGradient.ignoresSafeArea())
         .interactiveDismissDisabled(true)
+        .onAppear {
+            // If a key is already in the Keychain (e.g. when this onboarding
+            // is being replayed from Settings), pre-fill it so the user does
+            // not have to re-paste.
+            if keyDraft.isEmpty { keyDraft = settings.apiKey }
+        }
     }
 
     // MARK: - Steps
@@ -238,7 +244,7 @@ struct OnboardingView: View {
     private var primaryActionTitle: String {
         switch step {
         case 0: "Continue"
-        case 1: "I understand"
+        case 1: "Next: add your key"
         case 2: "Save and continue"
         default: "Start translating"
         }

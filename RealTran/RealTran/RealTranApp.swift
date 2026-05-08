@@ -35,9 +35,13 @@ struct RealTranApp: App {
         }
     }
 
+    /// Re-show onboarding on launch when either:
+    ///   - the user has never finished it, or
+    ///   - they have no API key stored (e.g. cleared it from Settings, or
+    ///     installed onto a new device where the Keychain item is missing).
     private var needsOnboarding: Binding<Bool> {
         Binding(
-            get: { !settings.hasCompletedOnboarding },
+            get: { !settings.hasCompletedOnboarding || settings.apiKey.isEmpty },
             set: { newValue in
                 if !newValue { settings.hasCompletedOnboarding = true }
             }
