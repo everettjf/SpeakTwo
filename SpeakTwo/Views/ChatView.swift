@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Side-by-side chat layout: phone lays flat between two people, both reading
 /// the same screen. Each utterance becomes a card with the source on top and
@@ -141,9 +142,52 @@ private struct ChatTurnBubble: View {
                     .clipShape(.rect(cornerRadii: .init(topLeading: 14, bottomLeading: 14)))
             }
             .frame(maxWidth: .infinity, alignment: alignsRight ? .trailing : .leading)
+            .contextMenu { copyMenu }
 
             if !alignsRight { Spacer(minLength: 40) }
         }
+    }
+
+    @ViewBuilder
+    private var copyMenu: some View {
+        if !turn.sourceText.isEmpty {
+            Button {
+                UIPasteboard.general.string = turn.sourceText
+            } label: {
+                Label("Copy \(sourceCopyLabel)", systemImage: "doc.on.doc")
+            }
+        }
+        if !turn.translatedText.isEmpty {
+            Button {
+                UIPasteboard.general.string = turn.translatedText
+            } label: {
+                Label("Copy \(translatedCopyLabel)", systemImage: "doc.on.doc")
+            }
+        }
+        if !turn.sourceText.isEmpty && !turn.translatedText.isEmpty {
+            Divider()
+            Button {
+                UIPasteboard.general.string = "\(turn.sourceText)\n\n\(turn.translatedText)"
+            } label: {
+                Label("Copy both", systemImage: "doc.on.doc.fill")
+            }
+        }
+    }
+
+    private func languageDisplayName(forCode code: String) -> String? {
+        guard !code.isEmpty, code != "auto" else { return nil }
+        let normalized = String(code.split(separator: "-").first ?? Substring(code))
+        return SupportedLanguages.byCode(normalized)?.nativeName
+            ?? SupportedLanguages.byCode(code)?.nativeName
+            ?? normalized.uppercased()
+    }
+
+    private var sourceCopyLabel: String {
+        languageDisplayName(forCode: turn.sourceLanguageCode) ?? "source"
+    }
+
+    private var translatedCopyLabel: String {
+        languageDisplayName(forCode: turn.translatedLanguageCode) ?? "translation"
     }
 
     private var detectedNormalized: String {
