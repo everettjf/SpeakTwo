@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The `onChunk` closure fires on a background audio thread; the consumer is
 /// responsible for hopping to MainActor or another isolation domain as needed.
-final class AudioCaptureService: @unchecked Sendable {
+nonisolated final class AudioCaptureService: @unchecked Sendable {
     enum AudioError: Error, LocalizedError {
         case permissionDenied
         case engineUnavailable
@@ -41,7 +41,7 @@ final class AudioCaptureService: @unchecked Sendable {
         }
     }
 
-    func start() async throws {
+    nonisolated func start() async throws {
         let granted = await Self.requestPermission()
         guard granted else { throw AudioError.permissionDenied }
 
@@ -83,7 +83,7 @@ final class AudioCaptureService: @unchecked Sendable {
         try engine.start()
     }
 
-    func stop() {
+    nonisolated func stop() {
         engine.inputNode.removeTap(onBus: 0)
         if engine.isRunning { engine.stop() }
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
@@ -91,7 +91,7 @@ final class AudioCaptureService: @unchecked Sendable {
         targetFormat = nil
     }
 
-    private func handle(buffer: AVAudioPCMBuffer) {
+    nonisolated private func handle(buffer: AVAudioPCMBuffer) {
         guard let converter, let targetFormat else { return }
 
         // Compute output capacity for the target format.

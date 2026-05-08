@@ -15,6 +15,16 @@ struct TranscriptLine: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+/// One utterance in chat-mode display: what was said and the translation.
+struct ChatTurn: Identifiable, Codable, Hashable, Sendable {
+    var id: UUID = UUID()
+    var startedAt: Date
+    var sourceLanguageCode: String
+    var sourceText: String
+    var translatedLanguageCode: String
+    var translatedText: String
+}
+
 struct ChatSession: Identifiable, Codable, Hashable, Sendable {
     var id: UUID = UUID()
     var startedAt: Date
@@ -26,6 +36,9 @@ struct ChatSession: Identifiable, Codable, Hashable, Sendable {
     var primaryLines: [TranscriptLine]
     /// Transcript lines for secondary panel (translations into secondaryLanguage).
     var secondaryLines: [TranscriptLine]
+    /// Chronological chat-mode turns (auto-detected source + matching translation).
+    /// Optional so older archived sessions still decode.
+    var chatTurns: [ChatTurn]?
 
     var displayTitle: String {
         let formatter = DateFormatter()

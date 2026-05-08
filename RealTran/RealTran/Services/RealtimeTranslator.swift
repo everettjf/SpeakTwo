@@ -3,7 +3,7 @@ import Foundation
 /// Single WebSocket connection to gpt-realtime-translate, configured for one
 /// target output language. Auto-detects the source language from the audio
 /// stream and emits transcript deltas (input = source-lang, output = target-lang).
-final class RealtimeTranslator: @unchecked Sendable {
+nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
     enum State: Sendable {
         case idle
@@ -45,7 +45,7 @@ final class RealtimeTranslator: @unchecked Sendable {
         self.session = URLSession(configuration: cfg)
     }
 
-    func connect() {
+    nonisolated func connect() {
         onEvent(.state(.connecting))
 
         guard let url = URL(string: "wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate") else {
@@ -81,7 +81,7 @@ final class RealtimeTranslator: @unchecked Sendable {
         startReceiveLoop()
     }
 
-    func close() {
+    nonisolated func close() {
         receiveLoop?.cancel()
         receiveLoop = nil
         // Best-effort: send session.close, then close the socket.
@@ -92,7 +92,7 @@ final class RealtimeTranslator: @unchecked Sendable {
     }
 
     /// Send a PCM16 24kHz mono audio chunk.
-    func appendAudio(_ pcm16Data: Data) {
+    nonisolated func appendAudio(_ pcm16Data: Data) {
         let b64 = pcm16Data.base64EncodedString()
         send(json: [
             "type": "session.input_audio_buffer.append",
@@ -102,7 +102,7 @@ final class RealtimeTranslator: @unchecked Sendable {
 
     // MARK: - Internals
 
-    private func send(json: [String: Any]) {
+    nonisolated private func send(json: [String: Any]) {
         guard let task else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: json) else { return }
         guard let str = String(data: data, encoding: .utf8) else { return }
@@ -115,7 +115,7 @@ final class RealtimeTranslator: @unchecked Sendable {
         }
     }
 
-    private func startReceiveLoop() {
+    nonisolated private func startReceiveLoop() {
         receiveLoop?.cancel()
         receiveLoop = Task { [weak self] in
             guard let self else { return }
@@ -134,7 +134,7 @@ final class RealtimeTranslator: @unchecked Sendable {
         }
     }
 
-    private func handle(message: URLSessionWebSocketTask.Message) {
+    nonisolated private func handle(message: URLSessionWebSocketTask.Message) {
         let text: String
         switch message {
         case .string(let s): text = s

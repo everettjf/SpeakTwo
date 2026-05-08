@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 import Observation
 
 /// Orchestrates the live translation pipeline:
@@ -29,6 +30,10 @@ final class TranslationCoordinator {
     /// Last detected source-language transcript (auto-detected by Whisper).
     private(set) var lastInputTranscript: String = ""
 
+    /// Chronological chat-mode list. Each turn = one detected utterance plus
+    /// the matching translation into the *other* language.
+    private(set) var chatTurns: [ChatTurn] = []
+
     private(set) var primaryLanguageCode: String = "en"
     private(set) var secondaryLanguageCode: String = "zh"
 
@@ -44,6 +49,12 @@ final class TranslationCoordinator {
     private var secondaryLines: [TranscriptLine] = []
     private var inputLines: [TranscriptLine] = []
 
+    // Chat-turn streaming state. `openTurn` is exposed read-only so views can
+    // render the in-progress turn before it is finalized into `chatTurns`.
+    private(set) var openTurn: ChatTurn?
+    private var openTurnLastInputAt: Date = .distantPast
+    private var openTurnTranslatedFromPanel: Panel?
+
     init(settings: AppSettings, store: SessionStore) {
         self.settings = settings
         self.store = store
@@ -51,7 +62,13 @@ final class TranslationCoordinator {
 
     // MARK: - Public
 
+    func dismissError() {
+        if case .error = status { status = .idle }
+    }
+
     func start() async {
+        // A previous error should not block restarting.
+        if case .error = status { status = .idle }
         guard status != .running, status != .starting else { return }
 
         guard !settings.apiKey.isEmpty else {
@@ -68,6 +85,9 @@ final class TranslationCoordinator {
         primaryLines = []
         secondaryLines = []
         inputLines = []
+        chatTurns = []
+        openTurn = nil
+        openTurnTranslatedFromPanel = nil
         sessionStartedAt = Date()
         primaryLanguageCode = settings.primaryLanguageCode
         secondaryLanguageCode = settings.secondaryLanguageCode
@@ -119,19 +139,24 @@ final class TranslationCoordinator {
         audio.stop()
         tearDownConnections()
 
+        // Finalize any open chat turn.
+        if let turn = openTurn {
+            chatTurns.append(turn)
+            openTurn = nil
+            openTurnTranslatedFromPanel = nil
+        }
+
         // Persist the session if there is anything to save.
         if let startedAt = sessionStartedAt,
-           !primaryLines.isEmpty || !secondaryLines.isEmpty || !inputLines.isEmpty {
-            // Combine input lines into the panel matching their detected language is
-            // hard without per-delta language metadata; for MVP we keep panels as
-            // pure target-language transcripts and discard the duplicated input lines.
+           !primaryLines.isEmpty || !secondaryLines.isEmpty || !inputLines.isEmpty || !chatTurns.isEmpty {
             let session = ChatSession(
                 startedAt: startedAt,
                 endedAt: Date(),
                 primaryLanguageCode: primaryLanguageCode,
                 secondaryLanguageCode: secondaryLanguageCode,
                 primaryLines: primaryLines,
-                secondaryLines: secondaryLines
+                secondaryLines: secondaryLines,
+                chatTurns: chatTurns
             )
             store.save(session)
         }
@@ -166,6 +191,7 @@ final class TranslationCoordinator {
             guard panel == .primary else { return }
             lastInputTranscript += delta
             appendDelta(delta, to: &inputLines, languageCode: "auto", kind: .input)
+            updateChatTurnFromInput(delta: delta)
         case .outputDelta(let delta):
             switch panel {
             case .primary:
@@ -175,9 +201,77 @@ final class TranslationCoordinator {
                 secondaryTranscript += delta
                 appendDelta(delta, to: &secondaryLines, languageCode: secondaryLanguageCode, kind: .output)
             }
+            updateChatTurnFromOutput(delta: delta, panel: panel)
         case .error(let msg):
             status = .error(msg)
         }
+    }
+
+    // MARK: - Chat turn building
+
+    private func updateChatTurnFromInput(delta: String) {
+        let now = Date()
+        // Start a new turn after a 1.5s silence gap or after a sentence terminator.
+        if openTurn == nil || shouldFinalizeTurn(now: now) {
+            if let finished = openTurn {
+                chatTurns.append(finished)
+            }
+            openTurn = ChatTurn(
+                startedAt: now,
+                sourceLanguageCode: "auto",
+                sourceText: delta,
+                translatedLanguageCode: "",
+                translatedText: ""
+            )
+            openTurnTranslatedFromPanel = nil
+        } else {
+            openTurn?.sourceText += delta
+        }
+        openTurnLastInputAt = now
+
+        // Detect source language once we have a few characters; pick the
+        // *other* configured language as the translation target.
+        if let turn = openTurn,
+           turn.sourceLanguageCode == "auto",
+           turn.sourceText.unicodeScalars.count >= 4,
+           let detected = detectLanguage(turn.sourceText) {
+            openTurn?.sourceLanguageCode = detected
+            let normalized = String(detected.split(separator: "-").first ?? Substring(detected))
+            if normalized == primaryLanguageCode {
+                openTurn?.translatedLanguageCode = secondaryLanguageCode
+                openTurnTranslatedFromPanel = .secondary
+            } else if normalized == secondaryLanguageCode {
+                openTurn?.translatedLanguageCode = primaryLanguageCode
+                openTurnTranslatedFromPanel = .primary
+            } else {
+                // Detected language isn't either configured language; default to
+                // routing through the primary panel's translation.
+                openTurn?.translatedLanguageCode = primaryLanguageCode
+                openTurnTranslatedFromPanel = .primary
+            }
+        }
+    }
+
+    private func updateChatTurnFromOutput(delta: String, panel: Panel) {
+        // Only append to the current turn if this delta is the actual translation
+        // (not the echo of the same-language session).
+        guard openTurn != nil, let routePanel = openTurnTranslatedFromPanel,
+              routePanel == panel else { return }
+        openTurn?.translatedText += delta
+    }
+
+    private func shouldFinalizeTurn(now: Date) -> Bool {
+        guard openTurn != nil else { return false }
+        if now.timeIntervalSince(openTurnLastInputAt) > 1.5 { return true }
+        if let last = openTurn?.sourceText.last,
+           ".?!。？！".contains(last) { return true }
+        return false
+    }
+
+    private func detectLanguage(_ text: String) -> String? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        return recognizer.dominantLanguage?.rawValue
     }
 
     /// Append a delta to a per-panel buffer, grouping deltas into "lines" so the

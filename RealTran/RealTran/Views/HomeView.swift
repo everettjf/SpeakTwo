@@ -7,41 +7,40 @@ struct HomeView: View {
     @State private var showingSettings = false
 
     var body: some View {
+        @Bindable var settings = settings
+
         NavigationStack {
             VStack(spacing: 0) {
-                // Top panel — rotated 180° for the person sitting opposite.
-                TranscriptPanel(
-                    title: settings.secondaryLanguage.nativeName,
-                    languageCode: coordinator.secondaryLanguageCode,
-                    text: coordinator.secondaryTranscript,
-                    accent: .blue,
-                    isRunning: coordinator.status == .running
-                )
-                .rotationEffect(.degrees(180))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Group {
+                    switch settings.displayMode {
+                    case .faceToFace:
+                        faceToFaceLayout
+                    case .chat:
+                        chatLayout
+                    }
+                }
 
                 Divider()
 
-                // Center control bar.
                 controlBar
                     .padding(.vertical, 12)
                     .background(.thinMaterial)
-
-                Divider()
-
-                // Bottom panel — for the user holding the phone.
-                TranscriptPanel(
-                    title: settings.primaryLanguage.nativeName,
-                    languageCode: coordinator.primaryLanguageCode,
-                    text: coordinator.primaryTranscript,
-                    accent: .green,
-                    isRunning: coordinator.status == .running
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("RealTran")
+            .navigationTitle("SpeakTwo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        toggleDisplayMode()
+                    } label: {
+                        Image(systemName: settings.displayMode == .faceToFace
+                              ? "bubble.left.and.bubble.right"
+                              : "rectangle.split.1x2")
+                    }
+                    .accessibilityLabel(settings.displayMode == .faceToFace
+                                        ? "Switch to chat layout"
+                                        : "Switch to face-to-face layout")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingSettings = true
@@ -63,7 +62,9 @@ struct HomeView: View {
             .alert("Translation error",
                    isPresented: errorBinding,
                    actions: {
-                       Button("OK", role: .cancel) {}
+                       Button("OK", role: .cancel) {
+                           coordinator.dismissError()
+                       }
                    },
                    message: {
                        if case let .error(msg) = coordinator.status {
@@ -73,13 +74,57 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Layouts
+
+    @ViewBuilder
+    private var faceToFaceLayout: some View {
+        VStack(spacing: 0) {
+            // Top panel — rotated 180° for the person sitting opposite.
+            TranscriptPanel(
+                title: settings.secondaryLanguage.nativeName,
+                languageCode: coordinator.secondaryLanguageCode,
+                text: coordinator.secondaryTranscript,
+                accent: .blue,
+                isRunning: coordinator.status == .running
+            )
+            .rotationEffect(.degrees(180))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            // Bottom panel — for the user holding the phone.
+            TranscriptPanel(
+                title: settings.primaryLanguage.nativeName,
+                languageCode: coordinator.primaryLanguageCode,
+                text: coordinator.primaryTranscript,
+                accent: .green,
+                isRunning: coordinator.status == .running
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var chatLayout: some View {
+        ChatView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Control bar
+
+    private func toggleDisplayMode() {
+        settings.displayMode = settings.displayMode == .faceToFace ? .chat : .faceToFace
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(
             get: {
                 if case .error = coordinator.status { return true }
                 return false
             },
-            set: { _ in /* dismissed by user */ }
+            set: { newValue in
+                if !newValue { coordinator.dismissError() }
+            }
         )
     }
 

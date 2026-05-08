@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+enum DisplayMode: String, Codable, Sendable, CaseIterable {
+    /// Two panels stacked, top one rotated 180° for the person sitting opposite.
+    case faceToFace
+    /// Single chronological chat list — both readers sit side by side.
+    case chat
+}
+
 @Observable
 @MainActor
 final class AppSettings {
@@ -9,6 +16,7 @@ final class AppSettings {
     private enum Keys {
         static let primaryLanguage = "primaryLanguage"
         static let secondaryLanguage = "secondaryLanguage"
+        static let displayMode = "displayMode"
     }
 
     var primaryLanguageCode: String {
@@ -17,6 +25,10 @@ final class AppSettings {
 
     var secondaryLanguageCode: String {
         didSet { defaults.set(secondaryLanguageCode, forKey: Keys.secondaryLanguage) }
+    }
+
+    var displayMode: DisplayMode {
+        didSet { defaults.set(displayMode.rawValue, forKey: Keys.displayMode) }
     }
 
     var apiKey: String {
@@ -33,6 +45,8 @@ final class AppSettings {
     init() {
         self.primaryLanguageCode = defaults.string(forKey: Keys.primaryLanguage) ?? "en"
         self.secondaryLanguageCode = defaults.string(forKey: Keys.secondaryLanguage) ?? "zh"
+        let modeRaw = defaults.string(forKey: Keys.displayMode) ?? DisplayMode.faceToFace.rawValue
+        self.displayMode = DisplayMode(rawValue: modeRaw) ?? .faceToFace
     }
 
     var primaryLanguage: Language {

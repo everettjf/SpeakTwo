@@ -16,6 +16,16 @@ struct SessionDetailView: View {
                 Text("Session")
             }
 
+            if let chatTurns = session.chatTurns, !chatTurns.isEmpty {
+                Section {
+                    ForEach(chatTurns) { turn in
+                        chatTurnRow(turn)
+                    }
+                } header: {
+                    Text("Conversation")
+                }
+            }
+
             Section {
                 if session.primaryLines.isEmpty {
                     Text("No transcript")
@@ -46,6 +56,33 @@ struct SessionDetailView: View {
         }
         .navigationTitle(session.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func chatTurnRow(_ turn: ChatTurn) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(turn.sourceLanguageCode.split(separator: "-").first.map(String.init)?.uppercased()
+                     ?? "?")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.blue.opacity(0.15), in: .capsule)
+                    .foregroundStyle(.blue)
+                Text(turn.startedAt.formatted(date: .omitted, time: .standard))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Text(turn.sourceText)
+                .font(.body)
+            if !turn.translatedText.isEmpty {
+                Text("→ \(turn.translatedText)")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
