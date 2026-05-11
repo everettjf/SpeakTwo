@@ -294,7 +294,11 @@ final class TranslationCoordinator {
 
     private func updateChatTurnFromInput(delta: String) {
         let now = Date()
-        // Start a new turn after a 1.5s silence gap or after a sentence terminator.
+        // Start a new turn after a silence gap. We deliberately do NOT split
+        // on sentence terminators alone — continuous speech (e.g. a person
+        // narrating a video) emits "…sentence one. sentence two…" without a
+        // real pause, and per-sentence splitting fragments the UI into a
+        // rapid-fire scroll of short bubbles.
         if openTurn == nil || shouldFinalizeTurn(now: now) {
             if let closing = openTurn {
                 // Move the closed input turn into draining so its still-arriving
@@ -375,10 +379,10 @@ final class TranslationCoordinator {
 
     private func shouldFinalizeTurn(now: Date) -> Bool {
         guard openTurn != nil else { return false }
-        if now.timeIntervalSince(openTurnLastInputAt) > 1.5 { return true }
-        if let last = openTurn?.sourceText.last,
-           ".?!。？！".contains(last) { return true }
-        return false
+        // Pause-only split. Threshold is generous enough that a speaker
+        // pausing to breathe between sentences stays inside one turn,
+        // but a real speaker change still gets its own row.
+        return now.timeIntervalSince(openTurnLastInputAt) > 2.5
     }
 
     private func detectLanguage(_ text: String) -> String? {
@@ -388,18 +392,15 @@ final class TranslationCoordinator {
     }
 
     /// Append a delta to a per-panel buffer, grouping deltas into "lines" so the
-    /// archive stays human-readable. We start a new line if the previous line ends
-    /// with sentence-ending punctuation or if more than 1.5 seconds passed.
+    /// archive stays human-readable. A new line starts after a quiet gap;
+    /// punctuation alone doesn't split, matching the chat-turn behavior.
     private func appendDelta(_ delta: String,
                              to lines: inout [TranscriptLine],
                              languageCode: String,
                              kind: TranscriptLine.Kind) {
         let now = Date()
         if var last = lines.last,
-           now.timeIntervalSince(last.timestamp) < 1.5,
-           !last.text.hasSuffix(".") && !last.text.hasSuffix("?") &&
-            !last.text.hasSuffix("!") && !last.text.hasSuffix("。") &&
-            !last.text.hasSuffix("？") && !last.text.hasSuffix("！") {
+           now.timeIntervalSince(last.timestamp) < 2.5 {
             last.text += delta
             last.timestamp = now
             lines[lines.count - 1] = last
