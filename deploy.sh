@@ -132,6 +132,19 @@ xcrun altool --upload-app \
     --password "$APP_SPECIFIC_PASSWORD"
 
 green "✅ Uploaded $MARKETING_VERSION ($NEW_BUILD). Check App Store Connect → TestFlight in a few minutes for processing status."
-echo
-echo "Tip: the build-number bump in $PBXPROJ is left in your working tree."
-echo "     Commit it with:  git add $PBXPROJ && git commit -m \"Bump build to $NEW_BUILD\""
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6. Auto-commit the build-number bump.
+# ──────────────────────────────────────────────────────────────────────────────
+if command -v git >/dev/null && git rev-parse --git-dir >/dev/null 2>&1; then
+    if ! git diff --quiet -- "$PBXPROJ"; then
+        blue "▶ Committing build bump…"
+        git add "$PBXPROJ"
+        git commit -m "Bump build to $NEW_BUILD"
+        green "✅ Committed build $NEW_BUILD."
+    else
+        blue "▶ No pbxproj changes to commit."
+    fi
+else
+    echo "Tip: not a git repo; skipping auto-commit of $PBXPROJ."
+fi
