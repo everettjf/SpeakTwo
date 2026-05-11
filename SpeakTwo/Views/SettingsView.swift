@@ -74,6 +74,18 @@ struct SettingsView: View {
             usageSection
 
             Section {
+                NavigationLink {
+                    DiagnosticsView()
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
+                }
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                Text("Connection events and detailed error messages from the translation service. Helpful when a session unexpectedly stops.")
+            }
+
+            Section {
                 Button {
                     showOnboarding = true
                 } label: {

@@ -34,6 +34,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
     private let targetLanguageCode: String
     private let noiseReduction: NoiseReduction
     private let onEvent: @Sendable (Event) -> Void
+    private let logTag: String
 
     private let session: URLSession
     private var task: URLSessionWebSocketTask?
@@ -48,6 +49,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         self.targetLanguageCode = targetLanguageCode
         self.noiseReduction = noiseReduction
         self.onEvent = onEvent
+        self.logTag = "WS-\(targetLanguageCode)"
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 60
         cfg.timeoutIntervalForResource = 60 * 60
@@ -56,8 +58,10 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
     nonisolated func connect() {
         onEvent(.state(.connecting))
+        diagLog(.info, tag: logTag, "Connecting → target=\(targetLanguageCode), noiseReduction=\(noiseReduction.rawValue)")
 
         guard let url = URL(string: "wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate") else {
+            diagLog(.error, tag: logTag, "Invalid URL")
             onEvent(.state(.failed("Invalid URL")))
             return
         }
@@ -92,6 +96,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
     }
 
     nonisolated func close() {
+        diagLog(.info, tag: logTag, "Closing")
         receiveLoop?.cancel()
         receiveLoop = nil
         // Best-effort: send session.close, then close the socket.
@@ -116,11 +121,13 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         guard let task else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: json) else { return }
         guard let str = String(data: data, encoding: .utf8) else { return }
-        sendQueue.async {
+        sendQueue.async { [logTag] in
             task.send(.string(str)) { [weak self] error in
                 guard let error else { return }
                 // Suppress URL-cancelled errors from intentional close().
                 if Self.isCancellationError(error) { return }
+                let ns = error as NSError
+                diagLog(.error, tag: logTag, "Send failed: \(error.localizedDescription) (domain=\(ns.domain), code=\(ns.code))")
                 self?.onEvent(.error("Send failed: \(error.localizedDescription)"))
             }
         }
@@ -143,7 +150,11 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
                     self.handle(message: msg)
                 } catch {
                     if !Task.isCancelled, !Self.isCancellationError(error) {
+                        let ns = error as NSError
+                        diagLog(.error, tag: self.logTag, "Receive failed: \(error.localizedDescription) (domain=\(ns.domain), code=\(ns.code))")
                         self.onEvent(.state(.failed(error.localizedDescription)))
+                    } else {
+                        diagLog(.info, tag: self.logTag, "Receive loop ended (cancelled)")
                     }
                     break
                 }
@@ -164,8 +175,10 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
 
         switch type {
         case "session.created", "session.updated":
+            diagLog(.info, tag: logTag, type)
             onEvent(.state(.ready))
         case "session.closed":
+            diagLog(.info, tag: logTag, "session.closed")
             onEvent(.state(.closed))
         case "session.input_transcript.delta":
             if let delta = obj["delta"] as? String, !delta.isEmpty {
@@ -181,9 +194,20 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         case "error":
             let err = obj["error"] as? [String: Any]
             let msg = err?["message"] as? String ?? "Unknown error"
+            // Capture the full server payload so rate-limit / quota / model
+            // errors land in the log with their code + type, not just message.
+            let detail = Self.compactJSON(obj) ?? text
+            diagLog(.error, tag: logTag, "server error: \(detail)")
             onEvent(.error(msg))
         default:
-            break
+            // Unknown / unhandled event types are rare but useful when
+            // debugging API changes.
+            diagLog(.info, tag: logTag, "event \(type)")
         }
+    }
+
+    nonisolated private static func compactJSON(_ obj: [String: Any]) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }

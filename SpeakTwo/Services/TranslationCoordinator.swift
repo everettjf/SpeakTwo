@@ -124,9 +124,11 @@ final class TranslationCoordinator {
 
         guard !settings.apiKey.isEmpty else {
             status = .error("Add your OpenAI API key in Settings.")
+            diagLog(.error, tag: "Coord", "Start blocked: no API key")
             return
         }
 
+        diagLog(.info, tag: "Coord", "Start requested: primary=\(settings.primaryLanguageCode), secondary=\(settings.secondaryLanguageCode), mic=\(settings.micScenario.rawValue), autoLevel=\(settings.autoLevel.rawValue)")
         status = .starting
 
         // Reset state for a fresh chat.
@@ -190,7 +192,9 @@ final class TranslationCoordinator {
         do {
             try await audio.start(mode: captureMode)
             status = .running
+            diagLog(.info, tag: "Coord", "Audio started, status=running")
         } catch {
+            diagLog(.error, tag: "Audio", "Start failed: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
             tearDownConnections()
         }
@@ -198,6 +202,7 @@ final class TranslationCoordinator {
 
     func stop() {
         guard status == .running || status == .starting else { return }
+        diagLog(.info, tag: "Coord", "Stop requested")
         status = .stopping
 
         audio.stop()
@@ -258,6 +263,7 @@ final class TranslationCoordinator {
         case .state(let s):
             switch s {
             case .failed(let msg):
+                diagLog(.error, tag: "Coord", "Translator \(panel) failed: \(msg)")
                 status = .error(msg)
             default: break
             }
@@ -279,6 +285,7 @@ final class TranslationCoordinator {
             }
             updateChatTurnFromOutput(delta: delta, panel: panel)
         case .error(let msg):
+            diagLog(.error, tag: "Coord", "Translator \(panel) error: \(msg)")
             status = .error(msg)
         }
     }
