@@ -16,7 +16,7 @@ final class TranslationCoordinator {
         case starting
         case running
         case stopping
-        case error(String)
+        case error(TranslationError)
     }
 
     private(set) var status: Status = .idle
@@ -123,7 +123,7 @@ final class TranslationCoordinator {
         guard status != .running, status != .starting else { return }
 
         guard !settings.apiKey.isEmpty else {
-            status = .error("Add your OpenAI API key in Settings.")
+            status = .error(TranslationError(raw: "Add your OpenAI API key in Settings."))
             diagLog(.error, tag: "Coord", "Start blocked: no API key")
             return
         }
@@ -204,7 +204,7 @@ final class TranslationCoordinator {
             diagLog(.error, tag: "Audio", "Start failed: \(error.localizedDescription)")
             audio.stop()
             tearDownConnections()
-            status = .error(error.localizedDescription)
+            status = .error(TranslationError(raw: error.localizedDescription))
         }
     }
 
@@ -221,11 +221,11 @@ final class TranslationCoordinator {
     /// continuous flood of "Socket is not connected" send failures, and without
     /// this guard each one would re-raise the alert the instant the user
     /// dismissed it. Tearing down also stops those sends at the source.
-    private func failSession(_ rawMessage: String) {
+    private func failSession(_ error: TranslationError) {
         guard status == .running || status == .starting else { return }
-        diagLog(.error, tag: "Coord", "Session failed: \(rawMessage)")
+        diagLog(.error, tag: "Coord", "Session failed: \(error.kind) — \(error.message)")
         finishSession()
-        status = .error(rawMessage)
+        status = .error(error)
     }
 
     /// Stop audio, close sockets, finalize pending turns, record usage, and
@@ -289,7 +289,7 @@ final class TranslationCoordinator {
             switch s {
             case .failed(let msg):
                 diagLog(.error, tag: "Coord", "Translator \(panel) failed: \(msg)")
-                failSession(msg)
+                failSession(TranslationError(raw: msg))
             default: break
             }
         case .inputDelta(let delta):
@@ -309,9 +309,9 @@ final class TranslationCoordinator {
                 appendDelta(delta, to: &secondaryLines, languageCode: secondaryLanguageCode, kind: .output)
             }
             updateChatTurnFromOutput(delta: delta, panel: panel)
-        case .error(let msg):
+        case .error(let msg, let code):
             diagLog(.error, tag: "Coord", "Translator \(panel) error: \(msg)")
-            failSession(msg)
+            failSession(TranslationError(message: msg, code: code))
         }
     }
 

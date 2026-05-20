@@ -20,8 +20,10 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         case inputDelta(String)
         /// Target-language translated transcript fragment.
         case outputDelta(String)
-        /// Server reported an error.
-        case error(String)
+        /// An error occurred. `code` carries the server's structured error
+        /// code/type when available (e.g. `insufficient_quota`); it is nil for
+        /// client-side failures like a dropped socket.
+        case error(message: String, code: String?)
     }
 
     /// Server-side noise reduction profile.
@@ -128,7 +130,7 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
                 if Self.isCancellationError(error) { return }
                 let ns = error as NSError
                 diagLog(.error, tag: logTag, "Send failed: \(error.localizedDescription) (domain=\(ns.domain), code=\(ns.code))")
-                self?.onEvent(.error("Send failed: \(error.localizedDescription)"))
+                self?.onEvent(.error(message: "Send failed: \(error.localizedDescription)", code: nil))
             }
         }
     }
@@ -194,11 +196,12 @@ nonisolated final class RealtimeTranslator: @unchecked Sendable {
         case "error":
             let err = obj["error"] as? [String: Any]
             let msg = err?["message"] as? String ?? "Unknown error"
+            let code = err?["code"] as? String ?? err?["type"] as? String
             // Capture the full server payload so rate-limit / quota / model
             // errors land in the log with their code + type, not just message.
             let detail = Self.compactJSON(obj) ?? text
             diagLog(.error, tag: logTag, "server error: \(detail)")
-            onEvent(.error(msg))
+            onEvent(.error(message: msg, code: code))
         default:
             // Unknown / unhandled event types are rare but useful when
             // debugging API changes.

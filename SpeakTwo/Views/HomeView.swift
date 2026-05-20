@@ -151,8 +151,8 @@ struct HomeView: View {
     }
 
     private var currentError: TranslationError? {
-        if case let .error(msg) = coordinator.status {
-            return TranslationError(raw: msg)
+        if case let .error(error) = coordinator.status {
+            return error
         }
         return nil
     }
