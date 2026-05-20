@@ -4,6 +4,7 @@ struct HomeView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(TranslationCoordinator.self) private var coordinator
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.openURL) private var openURL
 
     @State private var showingSettings = false
 
@@ -76,16 +77,32 @@ struct HomeView: View {
                         }
                 }
             }
-            .alert("Translation error",
+            .alert(currentError?.title ?? "Translation error",
                    isPresented: errorBinding,
                    actions: {
+                       if let error = currentError {
+                           switch error.recovery {
+                           case .openURL(let url):
+                               Button(error.recoveryTitle ?? "Learn more") {
+                                   coordinator.dismissError()
+                                   openURL(url)
+                               }
+                           case .openSettings:
+                               Button(error.recoveryTitle ?? "Open Settings") {
+                                   coordinator.dismissError()
+                                   showingSettings = true
+                               }
+                           case .none:
+                               EmptyView()
+                           }
+                       }
                        Button("OK", role: .cancel) {
                            coordinator.dismissError()
                        }
                    },
                    message: {
-                       if case let .error(msg) = coordinator.status {
-                           Text(msg)
+                       if let error = currentError {
+                           Text(error.message)
                        }
                    })
         }
@@ -131,6 +148,13 @@ struct HomeView: View {
 
     private func toggleDisplayMode() {
         settings.displayMode = settings.displayMode == .faceToFace ? .chat : .faceToFace
+    }
+
+    private var currentError: TranslationError? {
+        if case let .error(msg) = coordinator.status {
+            return TranslationError(raw: msg)
+        }
+        return nil
     }
 
     private var errorBinding: Binding<Bool> {

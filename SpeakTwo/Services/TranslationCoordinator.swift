@@ -191,12 +191,20 @@ final class TranslationCoordinator {
 
         do {
             try await audio.start(mode: captureMode)
+            // A translator may have failed during the await above (e.g. a fast
+            // quota/auth error). If so, honor that error rather than clobbering
+            // it with .running.
+            guard status == .starting else {
+                audio.stop()
+                return
+            }
             status = .running
             diagLog(.info, tag: "Coord", "Audio started, status=running")
         } catch {
             diagLog(.error, tag: "Audio", "Start failed: \(error.localizedDescription)")
-            status = .error(error.localizedDescription)
+            audio.stop()
             tearDownConnections()
+            status = .error(error.localizedDescription)
         }
     }
 
@@ -204,7 +212,25 @@ final class TranslationCoordinator {
         guard status == .running || status == .starting else { return }
         diagLog(.info, tag: "Coord", "Stop requested")
         status = .stopping
+        finishSession()
+        status = .idle
+    }
 
+    /// Tear down the live pipeline because a translator/socket reported a fatal
+    /// error, then surface it. Only the first error wins: a dead socket emits a
+    /// continuous flood of "Socket is not connected" send failures, and without
+    /// this guard each one would re-raise the alert the instant the user
+    /// dismissed it. Tearing down also stops those sends at the source.
+    private func failSession(_ rawMessage: String) {
+        guard status == .running || status == .starting else { return }
+        diagLog(.error, tag: "Coord", "Session failed: \(rawMessage)")
+        finishSession()
+        status = .error(rawMessage)
+    }
+
+    /// Stop audio, close sockets, finalize pending turns, record usage, and
+    /// persist the session. Shared by a clean stop and a fatal error.
+    private func finishSession() {
         audio.stop()
         tearDownConnections()
 
@@ -243,7 +269,6 @@ final class TranslationCoordinator {
         }
 
         sessionStartedAt = nil
-        status = .idle
     }
 
     // MARK: - Private
@@ -264,7 +289,7 @@ final class TranslationCoordinator {
             switch s {
             case .failed(let msg):
                 diagLog(.error, tag: "Coord", "Translator \(panel) failed: \(msg)")
-                status = .error(msg)
+                failSession(msg)
             default: break
             }
         case .inputDelta(let delta):
@@ -286,7 +311,7 @@ final class TranslationCoordinator {
             updateChatTurnFromOutput(delta: delta, panel: panel)
         case .error(let msg):
             diagLog(.error, tag: "Coord", "Translator \(panel) error: \(msg)")
-            status = .error(msg)
+            failSession(msg)
         }
     }
 
