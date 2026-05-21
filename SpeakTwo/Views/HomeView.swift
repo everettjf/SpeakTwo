@@ -201,7 +201,7 @@ struct HomeView: View {
     private var statusColor: Color {
         switch coordinator.status {
         case .idle: return .gray
-        case .starting, .stopping: return .yellow
+        case .starting, .stopping, .reconnecting: return .yellow
         case .running: return .red
         case .error: return .orange
         }
@@ -212,6 +212,7 @@ struct HomeView: View {
         case .idle: return "Idle"
         case .starting: return "Starting…"
         case .running: return "Live"
+        case .reconnecting: return "Reconnecting…"
         case .stopping: return "Stopping…"
         case .error: return "Error"
         }
@@ -220,7 +221,7 @@ struct HomeView: View {
     @ViewBuilder
     private var actionButton: some View {
         switch coordinator.status {
-        case .running, .stopping:
+        case .running, .reconnecting, .stopping:
             Button {
                 coordinator.stop()
             } label: {

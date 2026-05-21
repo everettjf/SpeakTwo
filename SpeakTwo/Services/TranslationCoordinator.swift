@@ -15,6 +15,7 @@ final class TranslationCoordinator {
         case idle
         case starting
         case running
+        case reconnecting
         case stopping
         case error(TranslationError)
     }
@@ -44,6 +45,15 @@ final class TranslationCoordinator {
     private let audio = AudioCaptureService()
     private var primaryTranslator: RealtimeTranslator?
     private var secondaryTranslator: RealtimeTranslator?
+
+    // Auto-reconnect state. A recoverable failure (connection drop, rate limit)
+    // rebuilds both sockets after a backoff instead of dropping the user to the
+    // error screen. `awaitingReconnect` is true during the backoff sleep so the
+    // flood of follow-on send failures from the dying socket is ignored.
+    private var reconnectTask: Task<Void, Never>?
+    private var reconnectAttempts = 0
+    private var awaitingReconnect = false
+    private static let maxReconnectAttempts = 3
 
     private var sessionStartedAt: Date?
     private var primaryLines: [TranscriptLine] = []
@@ -98,7 +108,7 @@ final class TranslationCoordinator {
     func newConversation() {
         guard hasContent else { return }
 
-        if status == .running || status == .starting {
+        if status == .running || status == .starting || status == .reconnecting {
             stop()
         }
 
@@ -144,93 +154,118 @@ final class TranslationCoordinator {
         openTurnTranslatedFromPanel = nil
         drainingTurnTranslatedFromPanel = nil
         drainingTurnLastOutputAt = .distantPast
+        reconnectAttempts = 0
+        awaitingReconnect = false
         sessionStartedAt = Date()
         primaryLanguageCode = settings.primaryLanguageCode
         secondaryLanguageCode = settings.secondaryLanguageCode
 
-        let noiseReduction: RealtimeTranslator.NoiseReduction
-        switch settings.micScenario {
-        case .closeSingle: noiseReduction = .nearField
-        case .desktopTwo: noiseReduction = .farField
-        }
-
-        // Build translators with @Sendable callbacks that hop to MainActor.
-        let primary = RealtimeTranslator(
-            apiKey: settings.apiKey,
-            targetLanguageCode: primaryLanguageCode,
-            noiseReduction: noiseReduction
-        ) { [weak self] event in
-            Task { @MainActor [weak self] in
-                self?.handle(event: event, panel: .primary)
-            }
-        }
-
-        let secondary = RealtimeTranslator(
-            apiKey: settings.apiKey,
-            targetLanguageCode: secondaryLanguageCode,
-            noiseReduction: noiseReduction
-        ) { [weak self] event in
-            Task { @MainActor [weak self] in
-                self?.handle(event: event, panel: .secondary)
-            }
-        }
-
-        primaryTranslator = primary
-        secondaryTranslator = secondary
-
-        primary.connect()
-        secondary.connect()
-
-        // Mic chunks fan out to both WebSockets.
-        audio.onChunk = { [weak primary, weak secondary] data in
-            primary?.appendAudio(data)
-            secondary?.appendAudio(data)
-        }
+        buildAndConnectTranslators()
 
         let captureMode: AudioCaptureService.CaptureMode = (settings.autoLevel == .on) ? .voiceChat : .measurement
 
         do {
             try await audio.start(mode: captureMode)
-            // A translator may have failed during the await above (e.g. a fast
-            // quota/auth error). If so, honor that error rather than clobbering
-            // it with .running.
-            guard status == .starting else {
+            // A translator may have failed during the await above. Honor the
+            // resulting state rather than clobbering it with .running.
+            switch status {
+            case .starting:
+                status = .running
+                diagLog(.info, tag: "Coord", "Audio started, status=running")
+            case .reconnecting:
+                // A recoverable error fired during startup; the scheduled
+                // reconnect will rebuild the sockets and needs the mic running.
+                diagLog(.info, tag: "Coord", "Audio started during reconnect")
+            default:
+                // Fatal error during startup — already torn down; stop the mic
+                // that just finished starting.
                 audio.stop()
-                return
             }
-            status = .running
-            diagLog(.info, tag: "Coord", "Audio started, status=running")
         } catch {
             diagLog(.error, tag: "Audio", "Start failed: \(error.localizedDescription)")
             audio.stop()
             tearDownConnections()
+            reconnectTask?.cancel()
+            reconnectTask = nil
+            awaitingReconnect = false
             status = .error(TranslationError(raw: error.localizedDescription))
         }
     }
 
     func stop() {
-        guard status == .running || status == .starting else { return }
+        guard status == .running || status == .starting || status == .reconnecting else { return }
         diagLog(.info, tag: "Coord", "Stop requested")
         status = .stopping
         finishSession()
         status = .idle
     }
 
-    /// Tear down the live pipeline because a translator/socket reported a fatal
-    /// error, then surface it. Only the first error wins: a dead socket emits a
+    /// React to a translator/socket failure. Recoverable failures (connection
+    /// drop, rate limit) trigger a backoff reconnect that keeps the mic running;
+    /// persistent ones (quota, auth) tear everything down and surface the alert.
+    ///
+    /// Only the first error in a burst is acted on: a dead socket emits a
     /// continuous flood of "Socket is not connected" send failures, and without
-    /// this guard each one would re-raise the alert the instant the user
-    /// dismissed it. Tearing down also stops those sends at the source.
+    /// the guards below each one would re-trigger handling. `awaitingReconnect`
+    /// covers the flood during the backoff window.
     private func failSession(_ error: TranslationError) {
-        guard status == .running || status == .starting else { return }
+        guard status == .running || status == .starting || status == .reconnecting else { return }
+        // A reconnect is already queued — ignore follow-on errors from the
+        // dying socket until that attempt resolves.
+        guard !awaitingReconnect else { return }
+
+        if error.isRecoverable, reconnectAttempts < Self.maxReconnectAttempts {
+            scheduleReconnect(error)
+            return
+        }
+
         diagLog(.error, tag: "Coord", "Session failed: \(error.kind) — \(error.message)")
         finishSession()
         status = .error(error)
     }
 
+    /// Close the current sockets (keeping the mic running) and rebuild them
+    /// after a backoff delay. The mic audio captured during the gap is dropped.
+    private func scheduleReconnect(_ error: TranslationError) {
+        reconnectAttempts += 1
+        let attempt = reconnectAttempts
+        let delay = Self.backoffDelay(forAttempt: attempt, kind: error.kind)
+        diagLog(.info, tag: "Coord", "Reconnect attempt \(attempt)/\(Self.maxReconnectAttempts) in \(delay)s after \(error.kind)")
+
+        awaitingReconnect = true
+        status = .reconnecting
+        teardownTranslators()
+
+        reconnectTask?.cancel()
+        reconnectTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.performReconnect()
+        }
+    }
+
+    private func performReconnect() {
+        // The user may have stopped during the backoff sleep.
+        guard status == .reconnecting, awaitingReconnect else { return }
+        awaitingReconnect = false
+        diagLog(.info, tag: "Coord", "Rebuilding translators (attempt \(reconnectAttempts))")
+        buildAndConnectTranslators()
+    }
+
+    private static func backoffDelay(forAttempt attempt: Int, kind: TranslationError.Kind) -> TimeInterval {
+        // Rate limits need breathing room; retrying too soon just re-trips them.
+        if kind == .rateLimit { return 5 }
+        // Connection drops: 1s, 2s, 4s … capped at 8s.
+        return min(pow(2.0, Double(attempt - 1)), 8)
+    }
+
     /// Stop audio, close sockets, finalize pending turns, record usage, and
     /// persist the session. Shared by a clean stop and a fatal error.
     private func finishSession() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        awaitingReconnect = false
+        reconnectAttempts = 0
         audio.stop()
         tearDownConnections()
 
@@ -275,18 +310,78 @@ final class TranslationCoordinator {
 
     private enum Panel { case primary, secondary }
 
-    private func tearDownConnections() {
-        audio.onChunk = nil
+    /// Build both target-language sockets, wire mic fan-out, and connect.
+    /// Used both on a fresh start and on reconnect; relies on
+    /// `primaryLanguageCode`/`secondaryLanguageCode` already being set.
+    private func buildAndConnectTranslators() {
+        let noiseReduction: RealtimeTranslator.NoiseReduction
+        switch settings.micScenario {
+        case .closeSingle: noiseReduction = .nearField
+        case .desktopTwo: noiseReduction = .farField
+        }
+
+        // Build translators with @Sendable callbacks that hop to MainActor.
+        let primary = RealtimeTranslator(
+            apiKey: settings.apiKey,
+            targetLanguageCode: primaryLanguageCode,
+            noiseReduction: noiseReduction
+        ) { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.handle(event: event, panel: .primary)
+            }
+        }
+
+        let secondary = RealtimeTranslator(
+            apiKey: settings.apiKey,
+            targetLanguageCode: secondaryLanguageCode,
+            noiseReduction: noiseReduction
+        ) { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.handle(event: event, panel: .secondary)
+            }
+        }
+
+        primaryTranslator = primary
+        secondaryTranslator = secondary
+
+        primary.connect()
+        secondary.connect()
+
+        // Mic chunks fan out to both WebSockets.
+        audio.onChunk = { [weak primary, weak secondary] data in
+            primary?.appendAudio(data)
+            secondary?.appendAudio(data)
+        }
+    }
+
+    /// Close both sockets but leave the mic running. Used for reconnect.
+    private func teardownTranslators() {
         primaryTranslator?.close()
         secondaryTranslator?.close()
         primaryTranslator = nil
         secondaryTranslator = nil
     }
 
+    /// Full teardown: stop mic fan-out and close both sockets.
+    private func tearDownConnections() {
+        audio.onChunk = nil
+        teardownTranslators()
+    }
+
     private func handle(event: RealtimeTranslator.Event, panel: Panel) {
         switch event {
         case .state(let s):
             switch s {
+            case .ready:
+                // A socket came up. If we were reconnecting, we're live again.
+                if status == .reconnecting {
+                    diagLog(.info, tag: "Coord", "Reconnected (\(panel))")
+                    reconnectAttempts = 0
+                    awaitingReconnect = false
+                    reconnectTask?.cancel()
+                    reconnectTask = nil
+                    status = .running
+                }
             case .failed(let msg):
                 diagLog(.error, tag: "Coord", "Translator \(panel) failed: \(msg)")
                 failSession(TranslationError(raw: msg))

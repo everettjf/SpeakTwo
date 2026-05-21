@@ -76,6 +76,16 @@ struct TranslationError: Equatable, Sendable {
         }
     }
 
+    /// True for failures a reconnect could plausibly recover from. Quota and
+    /// auth are persistent and should fail fast; connection drops and rate
+    /// limits are transient and worth retrying.
+    var isRecoverable: Bool {
+        switch kind {
+        case .connection, .rateLimit: return true
+        case .quota, .auth, .microphone, .unknown: return false
+        }
+    }
+
     private static func classify(message: String, code: String?) -> Kind {
         // Prefer the stable server code/type when present.
         if let code = code?.lowercased() {
