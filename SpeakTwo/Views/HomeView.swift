@@ -4,6 +4,7 @@ struct HomeView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(TranslationCoordinator.self) private var coordinator
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.openURL) private var openURL
 
     @State private var showingSettings = false
 
@@ -76,16 +77,32 @@ struct HomeView: View {
                         }
                 }
             }
-            .alert("Translation error",
+            .alert(currentError?.title ?? "Translation error",
                    isPresented: errorBinding,
                    actions: {
+                       if let error = currentError {
+                           switch error.recovery {
+                           case .openURL(let url):
+                               Button(error.recoveryTitle ?? "Learn more") {
+                                   coordinator.dismissError()
+                                   openURL(url)
+                               }
+                           case .openSettings:
+                               Button(error.recoveryTitle ?? "Open Settings") {
+                                   coordinator.dismissError()
+                                   showingSettings = true
+                               }
+                           case .none:
+                               EmptyView()
+                           }
+                       }
                        Button("OK", role: .cancel) {
                            coordinator.dismissError()
                        }
                    },
                    message: {
-                       if case let .error(msg) = coordinator.status {
-                           Text(msg)
+                       if let error = currentError {
+                           Text(error.message)
                        }
                    })
         }
@@ -133,6 +150,13 @@ struct HomeView: View {
         settings.displayMode = settings.displayMode == .faceToFace ? .chat : .faceToFace
     }
 
+    private var currentError: TranslationError? {
+        if case let .error(error) = coordinator.status {
+            return error
+        }
+        return nil
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(
             get: {
@@ -177,7 +201,7 @@ struct HomeView: View {
     private var statusColor: Color {
         switch coordinator.status {
         case .idle: return .gray
-        case .starting, .stopping: return .yellow
+        case .starting, .stopping, .reconnecting: return .yellow
         case .running: return .red
         case .error: return .orange
         }
@@ -188,6 +212,7 @@ struct HomeView: View {
         case .idle: return "Idle"
         case .starting: return "Starting…"
         case .running: return "Live"
+        case .reconnecting: return "Reconnecting…"
         case .stopping: return "Stopping…"
         case .error: return "Error"
         }
@@ -196,7 +221,7 @@ struct HomeView: View {
     @ViewBuilder
     private var actionButton: some View {
         switch coordinator.status {
-        case .running, .stopping:
+        case .running, .reconnecting, .stopping:
             Button {
                 coordinator.stop()
             } label: {
