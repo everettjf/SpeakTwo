@@ -252,7 +252,9 @@ final class TranslationCoordinator {
         buildAndConnectTranslators()
     }
 
-    private static func backoffDelay(forAttempt attempt: Int, kind: TranslationError.Kind) -> TimeInterval {
+    // `internal` (not `private`) so unit tests can verify the backoff schedule
+    // via `@testable import`. Pure function: no instance state touched.
+    static func backoffDelay(forAttempt attempt: Int, kind: TranslationError.Kind) -> TimeInterval {
         // Rate limits need breathing room; retrying too soon just re-trips them.
         if kind == .rateLimit { return 5 }
         // Connection drops: 1s, 2s, 4s … capped at 8s.
