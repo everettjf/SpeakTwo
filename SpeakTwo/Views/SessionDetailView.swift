@@ -11,7 +11,7 @@ struct SessionDetailView: View {
                     LabeledContent("Ended", value: ended.formatted(date: .abbreviated, time: .standard))
                 }
                 LabeledContent("Duration", value: session.durationDescription)
-                LabeledContent("Languages", value: "\(session.primaryLanguageCode.uppercased()) ⇄ \(session.secondaryLanguageCode.uppercased())")
+                LabeledContent("Languages", value: "\(SupportedLanguages.label(forCode: session.primaryLanguageCode)) ⇄ \(SupportedLanguages.label(forCode: session.secondaryLanguageCode))")
             } header: {
                 Text("Session")
             }
@@ -120,10 +120,10 @@ struct SessionDetailView: View {
                 let srcLang = languageDisplay(turn.sourceLanguageCode)
                 lines.append("[\(timeFmt.string(from: turn.startedAt))] \(srcLang)")
                 lines.append(turn.sourceText)
-                if !turn.translatedText.isEmpty {
+                if !turn.bestTranslation.isEmpty {
                     let dstLang = languageDisplay(turn.translatedLanguageCode)
                     lines.append("→ \(dstLang)")
-                    lines.append(turn.translatedText)
+                    lines.append(turn.bestTranslation)
                 }
                 lines.append("")
             }
@@ -160,8 +160,7 @@ struct SessionDetailView: View {
     private func chatTurnRow(_ turn: ChatTurn) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(turn.sourceLanguageCode.split(separator: "-").first.map(String.init)?.uppercased()
-                     ?? "?")
+                Text(SupportedLanguages.label(forCode: turn.sourceLanguageCode))
                     .font(.caption2.weight(.bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -171,11 +170,16 @@ struct SessionDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                if turn.isRefined {
+                    Image(systemName: "sparkles")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Text(turn.sourceText)
                 .font(.body)
-            if !turn.translatedText.isEmpty {
-                Text("→ \(turn.translatedText)")
+            if !turn.bestTranslation.isEmpty {
+                Text("→ \(turn.bestTranslation)")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }

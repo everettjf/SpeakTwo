@@ -38,7 +38,7 @@ struct TranscriptPanel: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text(languageCode.uppercased())
+                Text(badge)
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -73,5 +73,10 @@ struct TranscriptPanel: View {
 
     private var placeholder: String {
         isRunning ? "Listening…" : "Tap Start to begin translating."
+    }
+
+    /// Flag for the panel's language; falls back to the uppercased code.
+    private var badge: String {
+        SupportedLanguages.resolve(languageCode)?.flag ?? languageCode.uppercased()
     }
 }

@@ -98,6 +98,7 @@ struct ChatView: View {
 }
 
 private struct ChatTurnBubble: View {
+    @Environment(AppSettings.self) private var settings
     let turn: ChatTurn
     let primaryLanguageCode: String
     let secondaryLanguageCode: String
@@ -137,17 +138,24 @@ private struct ChatTurnBubble: View {
                 .font(.body)
                 .foregroundStyle(.primary)
 
-            if !turn.translatedText.isEmpty || isLive {
+            if !turn.bestTranslation.isEmpty || isLive {
                 Divider().padding(.vertical, 2)
                 HStack(spacing: 6) {
                     Text(translationTag)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
+                    if turn.isRefined {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Refined translation")
+                    }
                     Spacer(minLength: 0)
                 }
-                Text(turn.translatedText.isEmpty ? "…" : turn.translatedText)
+                Text(turn.bestTranslation.isEmpty ? "…" : turn.bestTranslation)
                     .font(.body)
                     .foregroundStyle(.primary)
+                    .animation(.easeInOut(duration: 0.2), value: turn.bestTranslation)
             }
         }
         .padding(.horizontal, 14)
@@ -171,41 +179,33 @@ private struct ChatTurnBubble: View {
                 Label("Copy \(sourceCopyLabel)", systemImage: "doc.on.doc")
             }
         }
-        if !turn.translatedText.isEmpty {
+        if !turn.bestTranslation.isEmpty {
             Button {
-                UIPasteboard.general.string = turn.translatedText
+                UIPasteboard.general.string = turn.bestTranslation
             } label: {
                 Label("Copy \(translatedCopyLabel)", systemImage: "doc.on.doc")
             }
         }
-        if !turn.sourceText.isEmpty && !turn.translatedText.isEmpty {
+        if !turn.sourceText.isEmpty && !turn.bestTranslation.isEmpty {
             Divider()
             Button {
-                UIPasteboard.general.string = "\(turn.sourceText)\n\n\(turn.translatedText)"
+                UIPasteboard.general.string = "\(turn.sourceText)\n\n\(turn.bestTranslation)"
             } label: {
                 Label("Copy both", systemImage: "doc.on.doc.fill")
             }
         }
     }
 
-    private func languageDisplayName(forCode code: String) -> String? {
-        guard !code.isEmpty, code != "auto" else { return nil }
-        let normalized = String(code.split(separator: "-").first ?? Substring(code))
-        return SupportedLanguages.byCode(normalized)?.nativeName
-            ?? SupportedLanguages.byCode(code)?.nativeName
-            ?? normalized.uppercased()
-    }
-
     private var sourceCopyLabel: String {
-        languageDisplayName(forCode: turn.sourceLanguageCode) ?? "source"
+        SupportedLanguages.name(forCode: turn.sourceLanguageCode)
     }
 
     private var translatedCopyLabel: String {
-        languageDisplayName(forCode: turn.translatedLanguageCode) ?? "translation"
+        SupportedLanguages.name(forCode: turn.translatedLanguageCode)
     }
 
     private var detectedNormalized: String {
-        String(turn.sourceLanguageCode.split(separator: "-").first ?? Substring(turn.sourceLanguageCode))
+        SupportedLanguages.normalize(turn.sourceLanguageCode)
     }
 
     private var alignsRight: Bool {
@@ -216,17 +216,25 @@ private struct ChatTurnBubble: View {
         alignsRight ? .green : .blue
     }
 
+    /// True when the side reading this bubble is the primary (your) speaker.
+    private var isPrimarySide: Bool { alignsRight }
+
+    private var useSpeakerNames: Bool { settings.speakerLabelStyle == .speaker }
+
     private var sourceTag: String {
-        if turn.sourceLanguageCode == "auto" || turn.sourceLanguageCode.isEmpty {
-            return "?"
+        if useSpeakerNames {
+            return isPrimarySide ? settings.primarySpeakerName : settings.secondarySpeakerName
         }
-        return detectedNormalized.uppercased()
+        return SupportedLanguages.label(forCode: turn.sourceLanguageCode)
     }
 
     private var translationTag: String {
+        if useSpeakerNames {
+            // Translation is for the other person.
+            let recipient = isPrimarySide ? settings.secondarySpeakerName : settings.primarySpeakerName
+            return "→ \(recipient)"
+        }
         guard !turn.translatedLanguageCode.isEmpty else { return "" }
-        let langName = SupportedLanguages.byCode(turn.translatedLanguageCode)?.nativeName
-            ?? turn.translatedLanguageCode.uppercased()
-        return "→ \(langName)"
+        return "→ \(SupportedLanguages.label(forCode: turn.translatedLanguageCode))"
     }
 }

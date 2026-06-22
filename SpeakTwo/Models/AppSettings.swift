@@ -52,6 +52,50 @@ enum AutoLevel: String, Codable, Sendable, CaseIterable, Identifiable {
     }
 }
 
+/// How utterances are tagged in the transcript: by their language, or by a
+/// name for the person speaking ("You" / "Them").
+enum SpeakerLabelStyle: String, Codable, Sendable, CaseIterable, Identifiable {
+    case language
+    case speaker
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .language: return "Language"
+        case .speaker: return "Speaker name"
+        }
+    }
+}
+
+/// Desired register for the refined translation. `auto` lets the model match
+/// the source; the others nudge it toward casual or formal forms (tu/vous,
+/// です/ます, 你/您, etc.).
+enum Formality: String, Codable, Sendable, CaseIterable, Identifiable {
+    case auto
+    case casual
+    case formal
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Match the speaker"
+        case .casual: return "Casual"
+        case .formal: return "Formal / polite"
+        }
+    }
+
+    /// Instruction fragment fed to the refinement model. Empty for `.auto`.
+    var promptClause: String {
+        switch self {
+        case .auto: return ""
+        case .casual: return "Use a casual, informal register (e.g. informal pronouns and verb forms)."
+        case .formal: return "Use a formal, polite register (e.g. formal pronouns and honorific verb forms)."
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class AppSettings {
@@ -64,6 +108,12 @@ final class AppSettings {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let micScenario = "micScenario"
         static let autoLevel = "autoLevel"
+        static let speakerLabelStyle = "speakerLabelStyle"
+        static let primarySpeakerName = "primarySpeakerName"
+        static let secondarySpeakerName = "secondarySpeakerName"
+        static let refineEnabled = "refineEnabled"
+        static let formality = "formality"
+        static let glossaryText = "glossaryText"
     }
 
     var primaryLanguageCode: String {
@@ -90,6 +140,35 @@ final class AppSettings {
         didSet { defaults.set(autoLevel.rawValue, forKey: Keys.autoLevel) }
     }
 
+    var speakerLabelStyle: SpeakerLabelStyle {
+        didSet { defaults.set(speakerLabelStyle.rawValue, forKey: Keys.speakerLabelStyle) }
+    }
+
+    /// Name for the person reading the primary (your) language.
+    var primarySpeakerName: String {
+        didSet { defaults.set(primarySpeakerName, forKey: Keys.primarySpeakerName) }
+    }
+
+    /// Name for the person reading the secondary (other) language.
+    var secondarySpeakerName: String {
+        didSet { defaults.set(secondarySpeakerName, forKey: Keys.secondarySpeakerName) }
+    }
+
+    /// Run a context-aware text refinement pass over each finished turn.
+    var refineEnabled: Bool {
+        didSet { defaults.set(refineEnabled, forKey: Keys.refineEnabled) }
+    }
+
+    var formality: Formality {
+        didSet { defaults.set(formality.rawValue, forKey: Keys.formality) }
+    }
+
+    /// User glossary, one rule per line as "source => target". Terms the
+    /// translator should render a specific way, or proper nouns to keep verbatim.
+    var glossaryText: String {
+        didSet { defaults.set(glossaryText, forKey: Keys.glossaryText) }
+    }
+
     var apiKey: String {
         get { KeychainStore.shared.apiKey ?? "" }
         set {
@@ -113,6 +192,18 @@ final class AppSettings {
 
         let levelRaw = defaults.string(forKey: Keys.autoLevel) ?? AutoLevel.on.rawValue
         self.autoLevel = AutoLevel(rawValue: levelRaw) ?? .on
+
+        let styleRaw = defaults.string(forKey: Keys.speakerLabelStyle) ?? SpeakerLabelStyle.language.rawValue
+        self.speakerLabelStyle = SpeakerLabelStyle(rawValue: styleRaw) ?? .language
+        self.primarySpeakerName = defaults.string(forKey: Keys.primarySpeakerName) ?? "You"
+        self.secondarySpeakerName = defaults.string(forKey: Keys.secondarySpeakerName) ?? "Them"
+
+        // Default on; `object(forKey:)` distinguishes "never set" from an
+        // explicit false so a returning user's choice is respected.
+        self.refineEnabled = (defaults.object(forKey: Keys.refineEnabled) as? Bool) ?? true
+        let formalityRaw = defaults.string(forKey: Keys.formality) ?? Formality.auto.rawValue
+        self.formality = Formality(rawValue: formalityRaw) ?? .auto
+        self.glossaryText = defaults.string(forKey: Keys.glossaryText) ?? ""
     }
 
     var primaryLanguage: Language {
@@ -124,4 +215,20 @@ final class AppSettings {
     }
 
     var hasAPIKey: Bool { !apiKey.isEmpty }
+
+    /// Parsed glossary rules: (source, target) pairs from `glossaryText`.
+    /// Accepts "a => b" or "a = b"; blank and malformed lines are skipped.
+    var glossaryRules: [(source: String, target: String)] {
+        glossaryText.split(whereSeparator: \.isNewline).compactMap { rawLine in
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { return nil }
+            let separator = line.contains("=>") ? "=>" : "="
+            let parts = line.components(separatedBy: separator)
+            guard parts.count == 2 else { return nil }
+            let source = parts[0].trimmingCharacters(in: .whitespaces)
+            let target = parts[1].trimmingCharacters(in: .whitespaces)
+            guard !source.isEmpty, !target.isEmpty else { return nil }
+            return (source, target)
+        }
+    }
 }

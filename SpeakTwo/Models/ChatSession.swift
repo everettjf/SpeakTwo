@@ -22,7 +22,22 @@ struct ChatTurn: Identifiable, Codable, Hashable, Sendable {
     var sourceLanguageCode: String
     var sourceText: String
     var translatedLanguageCode: String
+    /// Raw machine translation streamed from gpt-realtime-translate.
     var translatedText: String
+    /// Optional context-aware refinement of `translatedText` produced after the
+    /// turn closes. Nil until (and unless) refinement runs and succeeds.
+    /// Optional so older archived turns still decode.
+    var refinedText: String?
+
+    /// The translation to show: the refined version when available, else the
+    /// raw machine translation.
+    var bestTranslation: String {
+        if let refinedText, !refinedText.isEmpty { return refinedText }
+        return translatedText
+    }
+
+    /// True once a refinement has been applied — drives the ✨ marker in the UI.
+    var isRefined: Bool { (refinedText?.isEmpty == false) }
 }
 
 struct ChatSession: Identifiable, Codable, Hashable, Sendable {

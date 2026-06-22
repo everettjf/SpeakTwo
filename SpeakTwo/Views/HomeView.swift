@@ -110,12 +110,19 @@ struct HomeView: View {
 
     // MARK: - Layouts
 
+    /// Panel header: the speaker's name in speaker-label mode, else the
+    /// language's native name.
+    private func panelTitle(forSpeaker speaker: String, language: Language) -> String {
+        settings.speakerLabelStyle == .speaker ? speaker : language.nativeName
+    }
+
     @ViewBuilder
     private var faceToFaceLayout: some View {
         VStack(spacing: 0) {
             // Top panel — rotated 180° for the person sitting opposite.
             TranscriptPanel(
-                title: settings.secondaryLanguage.nativeName,
+                title: panelTitle(forSpeaker: settings.secondarySpeakerName,
+                                  language: settings.secondaryLanguage),
                 languageCode: coordinator.secondaryLanguageCode,
                 text: coordinator.secondaryTranscript,
                 accent: .blue,
@@ -128,7 +135,8 @@ struct HomeView: View {
 
             // Bottom panel — for the user holding the phone.
             TranscriptPanel(
-                title: settings.primaryLanguage.nativeName,
+                title: panelTitle(forSpeaker: settings.primarySpeakerName,
+                                  language: settings.primaryLanguage),
                 languageCode: coordinator.primaryLanguageCode,
                 text: coordinator.primaryTranscript,
                 accent: .green,

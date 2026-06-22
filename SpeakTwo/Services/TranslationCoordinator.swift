@@ -43,6 +43,7 @@ final class TranslationCoordinator {
     private let usage: UsageTracker
 
     private let audio = AudioCaptureService()
+    private let refiner = TranslationRefiner()
     private var primaryTranslator: RealtimeTranslator?
     private var secondaryTranslator: RealtimeTranslator?
 
@@ -274,12 +275,12 @@ final class TranslationCoordinator {
         // Finalize any pending turns in chronological order: draining first
         // (its input was already closed earlier), then the still-open turn.
         if let turn = drainingTurn {
-            chatTurns.append(turn)
+            finalize(turn)
             drainingTurn = nil
             drainingTurnTranslatedFromPanel = nil
         }
         if let turn = openTurn {
-            chatTurns.append(turn)
+            finalize(turn)
             openTurn = nil
             openTurnTranslatedFromPanel = nil
         }
@@ -429,7 +430,7 @@ final class TranslationCoordinator {
                 // draining turn is still here, promote it now (its output is
                 // unlikely to keep coming after this much elapsed time).
                 if let oldDraining = drainingTurn {
-                    chatTurns.append(oldDraining)
+                    finalize(oldDraining)
                 }
                 drainingTurn = closing
                 drainingTurnTranslatedFromPanel = openTurnTranslatedFromPanel
@@ -487,7 +488,7 @@ final class TranslationCoordinator {
                 return
             }
             // Output paused long enough — assume draining is done and promote.
-            chatTurns.append(drainingTurn!)
+            finalize(drainingTurn!)
             drainingTurn = nil
             drainingTurnTranslatedFromPanel = nil
             drainingTurnLastOutputAt = .distantPast
@@ -509,8 +510,95 @@ final class TranslationCoordinator {
 
     private func detectLanguage(_ text: String) -> String? {
         let recognizer = NLLanguageRecognizer()
+        // Bias detection toward the two configured languages. The source is
+        // almost always one of them, and unconstrained recognition misfires on
+        // short input or script-sharing pairs (e.g. zh vs ja both using kanji).
+        let candidates = Self.nlLanguages(for: primaryLanguageCode)
+            + Self.nlLanguages(for: secondaryLanguageCode)
+        if !candidates.isEmpty {
+            recognizer.languageConstraints = candidates
+            let weight = 1.0 / Double(candidates.count)
+            recognizer.languageHints = Dictionary(candidates.map { ($0, weight) },
+                                                  uniquingKeysWith: { first, _ in first })
+        }
         recognizer.processString(text)
         return recognizer.dominantLanguage?.rawValue
+    }
+
+    /// Map one of our 13 base codes to the `NLLanguage` value(s) the recognizer
+    /// reports, so detection constraints actually match its output.
+    private static func nlLanguages(for code: String) -> [NLLanguage] {
+        switch code {
+        case "en": return [.english]
+        case "zh": return [.simplifiedChinese, .traditionalChinese]
+        case "es": return [.spanish]
+        case "pt": return [.portuguese]
+        case "fr": return [.french]
+        case "de": return [.german]
+        case "it": return [.italian]
+        case "ja": return [.japanese]
+        case "ko": return [.korean]
+        case "ru": return [.russian]
+        case "hi": return [.hindi]
+        case "id": return [.indonesian]
+        case "vi": return [.vietnamese]
+        default: return []
+        }
+    }
+
+    // MARK: - Refinement
+
+    /// Move a finished turn into the chat log and kick off a best-effort
+    /// context-aware refinement of its translation (see `TranslationRefiner`).
+    private func finalize(_ turn: ChatTurn) {
+        chatTurns.append(turn)
+        scheduleRefinement(for: turn)
+    }
+
+    private func scheduleRefinement(for turn: ChatTurn) {
+        guard settings.refineEnabled else { return }
+        let source = turn.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let draft = turn.translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty, !draft.isEmpty, !turn.translatedLanguageCode.isEmpty else { return }
+
+        let apiKey = settings.apiKey
+        guard !apiKey.isEmpty else { return }
+
+        // Up to the last 3 finalized turns (excluding this one) for continuity.
+        let context = chatTurns
+            .filter { $0.id != turn.id && !$0.sourceText.isEmpty && !$0.bestTranslation.isEmpty }
+            .suffix(3)
+            .map { TranslationRefiner.ContextTurn(sourceText: $0.sourceText, translatedText: $0.bestTranslation) }
+
+        let sourceName: String = {
+            let code = turn.sourceLanguageCode
+            guard !code.isEmpty, code != "auto" else { return "the source language" }
+            return SupportedLanguages.englishName(forCode: code)
+        }()
+
+        let req = TranslationRefiner.Request(
+            apiKey: apiKey,
+            sourceText: turn.sourceText,
+            draftTranslation: turn.translatedText,
+            sourceLanguageEnglishName: sourceName,
+            targetLanguageEnglishName: SupportedLanguages.englishName(forCode: turn.translatedLanguageCode),
+            formalityClause: settings.formality.promptClause,
+            glossary: settings.glossaryRules,
+            recentContext: Array(context)
+        )
+
+        let turnID = turn.id
+        let refiner = self.refiner
+        Task { @MainActor [weak self] in
+            let refined = await refiner.refine(req)
+            guard let self, let refined else { return }
+            // The turn may have been cleared (new conversation) or already
+            // match the draft — only apply a genuine improvement.
+            guard let idx = self.chatTurns.firstIndex(where: { $0.id == turnID }) else { return }
+            if refined != self.chatTurns[idx].translatedText {
+                self.chatTurns[idx].refinedText = refined
+            }
+        }
     }
 
     /// Append a delta to a per-panel buffer, grouping deltas into "lines" so the

@@ -69,6 +69,10 @@ struct SettingsView: View {
                 Text("Two simultaneous translation sessions run — one for each language. The model auto-detects who is speaking which.")
             }
 
+            labelsSection
+
+            refinementSection
+
             audioRecognitionSection
 
             usageSection
@@ -115,6 +119,80 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This clears the daily minute totals shown above. Archived chats are not affected.")
+        }
+    }
+
+    // MARK: - Labels
+
+    @ViewBuilder
+    private var labelsSection: some View {
+        @Bindable var settings = settings
+
+        Section {
+            Picker("Label utterances by", selection: $settings.speakerLabelStyle) {
+                ForEach(SpeakerLabelStyle.allCases) { value in
+                    Text(value.displayName).tag(value)
+                }
+            }
+
+            if settings.speakerLabelStyle == .speaker {
+                TextField("Your name", text: $settings.primarySpeakerName)
+                    .textInputAutocapitalization(.words)
+                TextField("Other person's name", text: $settings.secondarySpeakerName)
+                    .textInputAutocapitalization(.words)
+            }
+        } header: {
+            Text("Transcript labels")
+        } footer: {
+            Text(settings.speakerLabelStyle == .speaker
+                 ? "Each utterance is tagged with who spoke it."
+                 : "Each utterance is tagged with its language and flag.")
+        }
+    }
+
+    // MARK: - Refinement
+
+    @ViewBuilder
+    private var refinementSection: some View {
+        @Bindable var settings = settings
+
+        Section {
+            Toggle("Refine translations", isOn: $settings.refineEnabled)
+
+            if settings.refineEnabled {
+                Picker("Tone", selection: $settings.formality) {
+                    ForEach(Formality.allCases) { value in
+                        Text(value.displayName).tag(value)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Glossary")
+                        .font(.subheadline.weight(.semibold))
+                    Text("One rule per line, e.g. \"OpenAI => OpenAI\" to keep a term, or \"小米 => Xiaomi\".")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $settings.glossaryText)
+                        .frame(minHeight: 88)
+                        .font(.callout.monospaced())
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .overlay(alignment: .topLeading) {
+                            if settings.glossaryText.isEmpty {
+                                Text("term => translation")
+                                    .font(.callout.monospaced())
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                }
+            }
+        } header: {
+            Text("Translation refinement")
+        } footer: {
+            Text("After each turn finishes, a text model (\(TranslationRefiner.model)) polishes the translation for fluency, tone, glossary terms, and consistency with earlier turns. This makes a separate billed API call per turn. Turn off to use the raw real-time translation only.")
         }
     }
 
