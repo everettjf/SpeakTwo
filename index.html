@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SpeakTwo — Real-time two-way speech translation</title>
+<meta name="description" content="Put your phone on the table and let two people talk in their own languages. SpeakTwo transcribes and translates both sides live, powered by OpenAI's gpt-realtime-translate." />
+
+<!-- Open Graph / social -->
+<meta property="og:title" content="SpeakTwo — Real-time two-way speech translation" />
+<meta property="og:description" content="Two people, two languages, one phone on the table. Live, hands-free interpreting powered by OpenAI realtime." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="app-store-screenshots/SpeakTwo-01.png" />
+<meta name="theme-color" content="#34C759" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --green: #34c759;
+    --green-deep: #28a745;
+    --blue: #007aff;
+    --blue-deep: #0051d5;
+    --ink: #0b0f1a;
+    --ink-soft: #3a414f;
+    --muted: #6b7280;
+    --line: rgba(15, 23, 42, 0.08);
+    --bg: #ffffff;
+    --bg-soft: #f6f8fb;
+    --radius: 22px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 30px 70px rgba(15, 23, 42, 0.16);
+    --maxw: 1120px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  .gradient-text {
+    background: linear-gradient(110deg, var(--green) 0%, #1fb8a6 45%, var(--blue) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ---------- Nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: rgba(255, 255, 255, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
+  .logo-mark {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--green), var(--green-deep));
+    display: grid; place-items: center;
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.4);
+    color: #fff;
+  }
+  .nav-links { display: flex; align-items: center; gap: 30px; }
+  .nav-links a { color: var(--ink-soft); font-weight: 500; font-size: 15px; transition: color .2s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    background: var(--ink); color: #fff !important; padding: 9px 18px; border-radius: 999px;
+    font-weight: 600; font-size: 14px; transition: transform .2s, box-shadow .2s;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(11, 15, 26, 0.25); }
+  @media (max-width: 760px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { position: relative; padding: 90px 0 60px; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0; z-index: -2;
+    background:
+      radial-gradient(60% 50% at 15% 0%, rgba(52, 199, 89, 0.14), transparent 70%),
+      radial-gradient(55% 50% at 90% 10%, rgba(0, 122, 255, 0.12), transparent 70%);
+  }
+  .hero-grid {
+    display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; align-items: center;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+    padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+    margin-bottom: 22px;
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(52,199,89,.18); }
+  h1 {
+    font-size: clamp(38px, 6vw, 62px); line-height: 1.04; letter-spacing: -0.035em;
+    font-weight: 900; margin-bottom: 20px;
+  }
+  .hero p.lead { font-size: clamp(17px, 2.2vw, 20px); color: var(--ink-soft); max-width: 520px; margin-bottom: 32px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; border-radius: 999px;
+    font-weight: 700; font-size: 16px; transition: transform .2s, box-shadow .2s; cursor: pointer;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--green), var(--green-deep)); color: #fff; box-shadow: 0 10px 26px rgba(52, 199, 89, 0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(52, 199, 89, 0.5); }
+  .btn-ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+  .btn-ghost:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .hero-note { margin-top: 18px; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+
+  /* phones */
+  .phones { position: relative; display: flex; justify-content: center; align-items: center; min-height: 540px; }
+  .phone {
+    border-radius: 44px; background: #fff; padding: 9px;
+    box-shadow: var(--shadow-lg), 0 0 0 1.5px rgba(15,23,42,.06);
+    overflow: hidden;
+  }
+  .phone img { display: block; width: 100%; border-radius: 36px; }
+  .phone-main { width: 256px; position: relative; z-index: 3; transform: rotate(-2deg); }
+  .phone-side {
+    width: 210px; position: absolute; z-index: 1; right: 0; top: 60px;
+    transform: rotate(6deg); opacity: .96;
+  }
+  .phone-back {
+    width: 196px; position: absolute; z-index: 0; left: 4px; top: 80px;
+    transform: rotate(-9deg); opacity: .82; filter: saturate(.95);
+  }
+  .float-card {
+    position: absolute; z-index: 4; background: rgba(255,255,255,.85);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--line); box-shadow: var(--shadow-md);
+    border-radius: 16px; padding: 11px 14px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .float-card .ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
+  .fc-1 { left: -6px; top: 18px; }
+  .fc-1 .ico { background: var(--blue); }
+  .fc-2 { right: -10px; bottom: 40px; animation: float 5s ease-in-out infinite; }
+  .fc-2 .ico { background: var(--green); }
+  .fc-1 { animation: float 6s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .phones { margin-top: 30px; min-height: 480px; }
+    .hero p.lead { margin-left: auto; margin-right: auto; }
+    .hero .hero-copy { text-align: center; }
+    .btn-row { justify-content: center; }
+    .hero-note { justify-content: center; }
+    .pill { margin-inline: auto; }
+  }
+
+  /* ---------- Logos / trust strip ---------- */
+  .strip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+  .strip-inner { display: flex; flex-wrap: wrap; justify-content: space-around; gap: 24px 40px; padding: 26px 0; text-align: center; }
+  .stat { min-width: 140px; }
+  .stat .n { font-size: 28px; font-weight: 900; letter-spacing: -0.03em; }
+  .stat .l { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+
+  /* ---------- Sections ---------- */
+  section.block { padding: 96px 0; }
+  .sec-head { text-align: center; max-width: 680px; margin: 0 auto 56px; }
+  .eyebrow { font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--green-deep); margin-bottom: 14px; }
+  h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 900; }
+  .sec-head p { color: var(--ink-soft); font-size: 18px; margin-top: 16px; }
+
+  /* feature grid */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  @media (max-width: 900px) { .features { grid-template-columns: 1fr; } }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 28px; box-shadow: var(--shadow-sm); transition: transform .25s, box-shadow .25s, border-color .25s;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: rgba(52,199,89,.3); }
+  .card .ico {
+    width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center;
+    margin-bottom: 18px; color: #fff;
+  }
+  .card h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .card p { color: var(--ink-soft); font-size: 15px; }
+  .ico-g { background: linear-gradient(135deg, #34c759, #28a745); }
+  .ico-b { background: linear-gradient(135deg, #0a84ff, #0051d5); }
+  .ico-p { background: linear-gradient(135deg, #af52de, #7c3aed); }
+  .ico-o { background: linear-gradient(135deg, #ff9f0a, #ff6b00); }
+  .ico-t { background: linear-gradient(135deg, #30d5c8, #1fb8a6); }
+  .ico-r { background: linear-gradient(135deg, #ff453a, #d70015); }
+
+  /* how it works */
+  .how { background: var(--bg-soft); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; counter-reset: step; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+  .step { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 30px 28px; position: relative; box-shadow: var(--shadow-sm); }
+  .step .num {
+    counter-increment: step; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 17px; margin-bottom: 18px;
+  }
+  .step .num::before { content: counter(step); }
+  .step h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .step p { color: var(--ink-soft); font-size: 15px; }
+
+  /* showcase */
+  .showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; align-items: center; }
+  @media (max-width: 900px) { .showcase { grid-template-columns: 1fr; } .showcase.reverse .sc-media { order: -1; } }
+  .sc-media { display: flex; justify-content: center; gap: 18px; }
+  .sc-media .phone { width: 230px; transform: none; }
+  .sc-media .phone:nth-child(2) { margin-top: 36px; }
+  .feature-list { list-style: none; margin-top: 26px; display: grid; gap: 16px; }
+  .feature-list li { display: flex; gap: 13px; align-items: flex-start; font-size: 16px; color: var(--ink-soft); }
+  .feature-list .check {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; background: rgba(52,199,89,.14);
+    color: var(--green-deep); display: grid; place-items: center; margin-top: 2px;
+  }
+  .feature-list b { color: var(--ink); font-weight: 700; }
+
+  /* languages */
+  .langs { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 760px; margin: 0 auto; }
+  .lang-chip {
+    background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 11px 20px;
+    font-weight: 600; font-size: 15px; box-shadow: var(--shadow-sm); transition: transform .2s, box-shadow .2s;
+  }
+  .lang-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+  /* privacy callout */
+  .privacy {
+    background: linear-gradient(135deg, #0b0f1a 0%, #18223a 100%); color: #fff; border-radius: 32px;
+    padding: 56px; position: relative; overflow: hidden;
+  }
+  .privacy::after {
+    content: ""; position: absolute; right: -80px; top: -80px; width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(52,199,89,.35), transparent 70%); filter: blur(10px);
+  }
+  .privacy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; position: relative; z-index: 1; }
+  @media (max-width: 760px) { .privacy { padding: 36px 28px; } .privacy-grid { grid-template-columns: 1fr; gap: 24px; } }
+  .privacy h2 { color: #fff; }
+  .privacy p { color: rgba(255,255,255,.7); font-size: 17px; margin-top: 16px; }
+  .privacy ul { list-style: none; display: grid; gap: 14px; }
+  .privacy li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; color: rgba(255,255,255,.9); }
+  .privacy li .lock { flex: none; color: var(--green); margin-top: 3px; }
+
+  /* CTA */
+  .cta { text-align: center; padding: 100px 0; }
+  .cta h2 { margin-bottom: 18px; }
+  .cta p { color: var(--ink-soft); font-size: 18px; max-width: 520px; margin: 0 auto 32px; }
+  .cta .btn-row { justify-content: center; }
+
+  /* footer */
+  footer { border-top: 1px solid var(--line); padding: 44px 0; background: var(--bg-soft); }
+  .foot-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 24px; }
+  .foot-links a { color: var(--ink-soft); font-size: 15px; font-weight: 500; transition: color .2s; }
+  .foot-links a:hover { color: var(--ink); }
+  .foot-copy { color: var(--muted); font-size: 14px; }
+
+  svg { display: block; }
+
+  /* reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .fc-1, .fc-2 { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Nav ===== -->
+<nav>
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <span class="logo-mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 5h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H9l-4 3v-3a3 3 0 0 1-1-2V8a3 3 0 0 1 3-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 9v6a3 3 0 0 1-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      SpeakTwo
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#languages">Languages</a>
+      <a href="#privacy">Privacy</a>
+      <a class="nav-cta" href="https://github.com/everettjf/SpeakTwo">View on GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== Hero ===== -->
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="pill"><span class="dot"></span> Powered by OpenAI gpt-realtime-translate</span>
+      <h1>Two people.<br/>Two languages.<br/><span class="gradient-text">One phone on the table.</span></h1>
+      <p class="lead">SpeakTwo transcribes and translates both sides of a face-to-face conversation live — no turn-taking, no buttons to pass back and forth. Just talk.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="https://github.com/everettjf/SpeakTwo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.35 4.81-4.58 5.06.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          Get the source
+        </a>
+        <a class="btn btn-ghost" href="#how">See how it works</a>
+      </div>
+      <div class="hero-note">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="#34c759" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="#34c759" stroke-width="2"/></svg>
+        Open source · MIT · Bring Your Own Key · No backend
+      </div>
+    </div>
+
+    <div class="phones">
+      <div class="phone phone-back"><img src="app-store-screenshots/SpeakTwo-03.png" alt="SpeakTwo settings" loading="lazy" /></div>
+      <div class="phone phone-side"><img src="app-store-screenshots/SpeakTwo-02.png" alt="Side-by-side chat mode" loading="lazy" /></div>
+      <div class="phone phone-main"><img src="app-store-screenshots/SpeakTwo-01.png" alt="Face-to-face translation mode" /></div>
+
+      <div class="float-card fc-1">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 8v8M19 8v8M8.5 5.5v13M15.5 5.5v13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        Live transcription
+      </div>
+      <div class="float-card fc-2">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h7l-2-2M20 17h-7l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        Both directions at once
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== Stats strip ===== -->
+<div class="strip">
+  <div class="wrap strip-inner">
+    <div class="stat"><div class="n gradient-text">13</div><div class="l">Languages</div></div>
+    <div class="stat"><div class="n gradient-text">2×</div><div class="l">Realtime sessions</div></div>
+    <div class="stat"><div class="n gradient-text">0</div><div class="l">Backend servers</div></div>
+    <div class="stat"><div class="n gradient-text">100%</div><div class="l">On-device key</div></div>
+  </div>
+</div>
+
+<!-- ===== Features ===== -->
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Why SpeakTwo</div>
+      <h2>An interpreter that sits on the table</h2>
+      <p>Built for real, in-person conversations — fast, private, and effortless.</p>
+    </div>
+    <div class="features">
+      <div class="card reveal">
+        <div class="ico ico-g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 8v8M19 8v8M8.5 5.5v13M15.5 5.5v13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Live two-way translation</h3>
+        <p>Both directions stream simultaneously. The model auto-detects which language is being spoken from the audio — no manual switching.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico ico-b"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="7" rx="2" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="18" height="7" rx="2" stroke="currentColor" stroke-width="2"/></svg></div>
+        <h3>Two display modes</h3>
+        <p>Face-to-face splits the screen with the top panel rotated 180° for the person across from you. Side-by-side shows one chronological chat.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico ico-t"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 12c3 0 3-5 6-5s3 10 6 10 3-5 6-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Tuned for the room</h3>
+        <p>Microphone-scenario presets for phone-in-hand vs. on-the-table, plus optional auto-leveling to balance near and far speakers.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico ico-o"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7l8-4 8 4-8 4-8-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 12l8 4 8-4M4 17l8 4 8-4" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        <h3>Local archive</h3>
+        <p>Past sessions are saved on-device so you can scroll back through full transcripts and translations whenever you need them.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico ico-p"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Privacy by design</h3>
+        <p>Your API key lives in the iOS Keychain. Audio goes straight to OpenAI — nothing is routed through a developer-operated backend.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico ico-r"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Built-in diagnostics</h3>
+        <p>A live log of the realtime connection makes debugging transparent, with automatic reconnection on transient socket failures.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== How it works ===== -->
+<section class="block how" id="how">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">How it works</div>
+      <h2>From silence to conversation in three taps</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="num"></div>
+        <h3>Add your key &amp; pick languages</h3>
+        <p>Paste your OpenAI API key once — it’s stored in the Keychain — then choose your language and the other person’s.</p>
+      </div>
+      <div class="step reveal">
+        <div class="num"></div>
+        <h3>Put the phone down</h3>
+        <p>Set it on the table between you and tap <b>Start</b>. SpeakTwo opens two realtime sessions, one per direction.</p>
+      </div>
+      <div class="step reveal">
+        <div class="num"></div>
+        <h3>Just talk, naturally</h3>
+        <p>Speak in your own language. Each side is transcribed and translated live and shown to the right person, the right way up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Showcase 1 ===== -->
+<section class="block">
+  <div class="wrap showcase">
+    <div class="reveal">
+      <div class="eyebrow">Face-to-face mode</div>
+      <h2>Designed for the person across the table</h2>
+      <ul class="feature-list">
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Rotated panel</b> — the top half flips 180° so the other person reads it naturally without grabbing the phone.</span></li>
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Color-coded sides</b> — each speaker’s language has its own panel, so it’s always clear who said what.</span></li>
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Hands-free</b> — no push-to-talk. The model figures out the source language from the audio.</span></li>
+      </ul>
+    </div>
+    <div class="sc-media reveal">
+      <div class="phone"><img src="app-store-screenshots/SpeakTwo-01.png" alt="Face-to-face mode" loading="lazy" /></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Showcase 2 ===== -->
+<section class="block how">
+  <div class="wrap showcase reverse">
+    <div class="sc-media reveal">
+      <div class="phone"><img src="app-store-screenshots/SpeakTwo-02.png" alt="Side-by-side chat mode" loading="lazy" /></div>
+    </div>
+    <div class="reveal">
+      <div class="eyebrow">Side-by-side chat</div>
+      <h2>A clean transcript you can follow and revisit</h2>
+      <ul class="feature-list">
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>One chronological thread</b> — every utterance shows what was said and its translation, in order.</span></li>
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Saved on-device</b> — open the archive later to review the whole conversation.</span></li>
+        <li><span class="check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><b>Switch anytime</b> — toggle between face-to-face and chat without losing the session.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Languages ===== -->
+<section class="block" id="languages">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Supported languages</div>
+      <h2>Translate across 13 languages</h2>
+      <p>Every language offered by <code>gpt-realtime-translate</code>, ready out of the box.</p>
+    </div>
+    <div class="langs reveal">
+      <span class="lang-chip">🇬🇧 English</span>
+      <span class="lang-chip">🇨🇳 中文 (Mandarin)</span>
+      <span class="lang-chip">🇪🇸 Español</span>
+      <span class="lang-chip">🇵🇹 Português</span>
+      <span class="lang-chip">🇫🇷 Français</span>
+      <span class="lang-chip">🇩🇪 Deutsch</span>
+      <span class="lang-chip">🇮🇹 Italiano</span>
+      <span class="lang-chip">🇯🇵 日本語</span>
+      <span class="lang-chip">🇰🇷 한국어</span>
+      <span class="lang-chip">🇷🇺 Русский</span>
+      <span class="lang-chip">🇮🇳 हिन्दी</span>
+      <span class="lang-chip">🇮🇩 Bahasa Indonesia</span>
+      <span class="lang-chip">🇻🇳 Tiếng Việt</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Privacy ===== -->
+<section class="block" id="privacy">
+  <div class="wrap">
+    <div class="privacy reveal">
+      <div class="privacy-grid">
+        <div>
+          <div class="eyebrow" style="color:#7dffb0">Privacy &amp; cost</div>
+          <h2>Your key. Your audio. No middleman.</h2>
+          <p>SpeakTwo is Bring-Your-Own-Key with no subscription and no backend. You pay OpenAI directly for realtime usage, and the app tracks it locally so there are no surprises.</p>
+        </div>
+        <ul>
+          <li><span class="lock"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>API key stored only in the iOS Keychain on your device.</span></li>
+          <li><span class="lock"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span><span>Audio streams directly to OpenAI over WebSocket — nothing through a third-party server.</span></li>
+          <li><span class="lock"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 7l8-4 8 4-8 4-8-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 12l8 4 8-4" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span><span>Transcripts saved only on-device. No accounts, no analytics backend.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta">
+  <div class="wrap">
+    <div class="reveal">
+      <h2>Ready to <span class="gradient-text">break the language barrier?</span></h2>
+      <p>SpeakTwo is open source under the MIT license. Clone it, add your OpenAI key, and start talking.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="https://github.com/everettjf/SpeakTwo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.35 4.81-4.58 5.06.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          Star on GitHub
+        </a>
+        <a class="btn btn-ghost" href="https://platform.openai.com/api-keys">Get an OpenAI key ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer>
+  <div class="wrap foot-inner">
+    <a class="brand" href="#top">
+      <span class="logo-mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 5h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H9l-4 3v-3a3 3 0 0 1-1-2V8a3 3 0 0 1 3-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 9v6a3 3 0 0 1-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      SpeakTwo
+    </a>
+    <div class="foot-links">
+      <a href="https://github.com/everettjf/SpeakTwo">GitHub</a>
+      <a href="https://github.com/everettjf/SpeakTwo/blob/main/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/everettjf/SpeakTwo/blob/main/LICENSE">License</a>
+      <a href="https://github.com/everettjf/SpeakTwo/issues">Issues</a>
+    </div>
+    <div class="foot-copy">© 2026 SpeakTwo · MIT License</div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+</script>
+</body>
+</html>
